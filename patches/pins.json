@@ -1,0 +1,14 @@
+{
+  "webapp": {
+    "repo": "https://github.com/jgraph/drawio.git",
+    "commit": "074a2ea4f2be105b1fe7cae9a26ecc15761dcef6",
+    "upstreamVersion": "v31.4.2",
+    "bootstrapV": 4,
+    "bundleV": 30
+  },
+  "desktop": {
+    "repo": "https://github.com/jgraph/drawio-desktop.git",
+    "commit": "d1fa65d804e8ddaeb4919080aff90c307c15f609",
+    "ref": "dev"
+  }
+}

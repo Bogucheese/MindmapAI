@@ -1,0 +1,21 @@
+{
+  "name": "mindmap-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI mind map module for the drawio-based mind map maker (bundled into the drawio webapp as an internal plugin)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:prod": "node build.mjs --minify",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "esbuild": "^0.24.0",
+    "happy-dom": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
