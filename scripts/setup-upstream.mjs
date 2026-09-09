@@ -269,6 +269,26 @@ function applyWebapp() {
     copyFile(path.join(PATCHES, 'webapp', f), img(f), `webapp/images/${f}`);
   }
   copyFile(path.join(PATCHES, 'webapp', 'manifest.json'), img('manifest.json'), 'webapp/images/manifest.json');
+
+  // brand: page titles and the tab-bar github badge
+  replaceOnce(path.join(app, 'index.html'), {
+    marker: '<title>MindmapAI</title>',
+    from: '<title>Flowchart Maker &amp; Online Diagram Software</title>',
+    to: '<title>MindmapAI</title>',
+    label: 'webapp/index.html static title',
+  });
+  replaceOnce(path.join(app, 'js', 'diagramly', 'Pages.js'), {
+    marker: "ghLink.style.display = 'none';",
+    from: "\t\t\t'padding:0 8px;opacity:0.5;flex-shrink:0';\n",
+    to: "\t\t\t'padding:0 8px;opacity:0.5;flex-shrink:0';\n\t\tghLink.style.display = 'none';\n",
+    label: 'webapp/Pages.js hide upstream github badge (dev source)',
+  });
+  replaceOnce(path.join(app, 'js', 'app.min.js'), {
+    marker: 'opacity:0.5;flex-shrink:0";l.style.display="none";',
+    from: 'opacity:0.5;flex-shrink:0";',
+    to: 'opacity:0.5;flex-shrink:0";l.style.display="none";',
+    label: 'webapp/app.min.js hide upstream github badge (prod)',
+  });
 }
 
 function applyDesktop() {

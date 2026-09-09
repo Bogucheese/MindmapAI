@@ -21,14 +21,18 @@ AI 思维导图桌面应用。
 
 ## setup 脚本注入的全部内容（对上游源码的修改）
 
-### webapp/（jgraph/drawio，8 个文件 + 品牌资产替换）
+### webapp/（jgraph/drawio，10 个文件 + 品牌资产替换）
 
 - `src/main/webapp/js/ai/mindmap-ai.js` — **新增**（由本仓库 `ai/` 的 TypeScript
-  源码经 esbuild 构建生成的插件 bundle）。
+  源码经 esbuild 构建生成的插件 bundle；插件同时把窗口/标签页标题的
+  `editor.appName` 设为 MindmapAI）。
 - `src/main/webapp/js/bootstrap.js` — 注入两行插件加载调用（prod / dev 两条路径）。
-- `src/main/webapp/index.html` — loader 脚本标签加 `?v=` 缓存版本号。
+- `src/main/webapp/index.html` — 修改：静态 `<title>` 改为 MindmapAI；loader
+  脚本标签加 `?v=` 缓存版本号。
 - `src/main/webapp/js/diagramly/Devel.js` — dev 模式 CSP `connect-src` 白名单
   追加一条（允许访问用户配置的 LLM 端点）。
+- `src/main/webapp/js/diagramly/Pages.js`、`js/app.min.js` — 修改：隐藏底部
+  标签栏的上游 GitHub 徽标（`ghLink` 加 `display:none`，源码与压缩产物各一处）。
 - `src/main/webapp/resources/dia.txt`、`dia_zh.txt` — 追加本插件的
   中英文资源 key（内容源文件在 `patches/webapp/`）。
 - `src/main/webapp/test-article.html` — **新增**（链接抓取模式的端到端测试
@@ -40,7 +44,7 @@ AI 思维导图桌面应用。
   `images/manifest.json` 品牌化版本整体替换（名称 MindmapAI、主题色
   `#6D28D9`）。
 
-### desktop/（jgraph/drawio-desktop，7 个文件）
+### desktop/（jgraph/drawio-desktop，8 个文件）
 
 - `src/main/electron.js` — 注入：`MM_WEBAPP_DIR` 加载目录覆盖与打包态回退；
   4 个 IPC 通道 `mmAiGetSecret` / `mmAiSetSecret` / `mmAiDeleteSecret`

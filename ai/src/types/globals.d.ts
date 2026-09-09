@@ -40,7 +40,9 @@ interface DrawioPluginApi {
     put(name: string, menu: any): any;
   };
   /** 当前编辑器图实例（mxGraph 子类）；cancelFirst 决定取消按钮排列顺序 */
-  editor: { graph: any; cancelFirst?: boolean };
+  editor: { graph: any; cancelFirst?: boolean; appName?: string };
+  /** 重算 document.title（filename - editor.appName） */
+  updateDocumentTitle?: () => void;
   /** 对话框：ui.showDialog(elt, w, h, modal, closable, onClose?, noScroll?, ...)；h=null 自动量高 */
   showDialog(elt: HTMLElement, w: number, h: number | null, modal: boolean, closable: boolean, onClose?: () => void, noScroll?: boolean, transparent?: boolean, minSize?: any, ignoreBgClick?: boolean, persistenceKey?: string): void;
   hideDialog(cancel?: boolean, isEsc?: boolean, matchContainer?: any): void;

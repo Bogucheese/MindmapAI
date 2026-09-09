@@ -17,6 +17,9 @@ const LOAD_TIMEOUT_MS = 5000;
 const RETRY_INTERVAL_MS = 100;
 
 function registerPlugin(ui: DrawioPluginApi): void {
+  // 品牌：标题用本产品名（上游 Editor.prototype.appName 硬编码 'draw.io'）
+  ui.editor.appName = 'MindmapAI';
+  ui.updateDocumentTitle?.();
   registerActions(ui);
   registerMenus(ui);
   registerPopupMenu(ui);
