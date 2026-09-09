@@ -96,8 +96,8 @@ node ai/tools/local-fetch-proxy.mjs [端口]
    (`MindmapAI.exe --remote-debugging-port=9222`) 与 `ai/dev-mock-server.mjs`，
    再用 Windows 侧 Node 跑 `desktop/scripts/cdp-regression.mjs --flow`。
 
-> 注意：安装包未做代码签名（SmartScreen 会告警）；应用图标仍为上游 drawio
-> 原版，产品视觉替换在路线图中。
+> 注意：安装包未做代码签名（SmartScreen 会告警）；应用图标为原创设计
+> （`patches/assets/mindmapai-icon.svg`，setup 时注入替换上游品牌元素）。
 
 ## 架构约束（改代码前值得知道）
 

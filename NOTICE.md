@@ -21,7 +21,7 @@ AI 思维导图桌面应用。
 
 ## setup 脚本注入的全部内容（对上游源码的修改）
 
-### webapp/（jgraph/drawio，7 个文件）
+### webapp/（jgraph/drawio，8 个文件 + 品牌资产替换）
 
 - `src/main/webapp/js/ai/mindmap-ai.js` — **新增**（由本仓库 `ai/` 的 TypeScript
   源码经 esbuild 构建生成的插件 bundle）。
@@ -33,12 +33,19 @@ AI 思维导图桌面应用。
   中英文资源 key（内容源文件在 `patches/webapp/`）。
 - `src/main/webapp/test-article.html` — **新增**（链接抓取模式的端到端测试
   夹具，源文件在 `patches/webapp/`）。
+- 品牌资产替换（内容层面，原创设计见 `patches/assets/mindmapai-icon.svg`）：
+  覆盖 `favicon.ico`、`images/apple-touch-icon.png`、`images/icon-192.png`、
+  `images/icon-512.png` 及两个 maskable 变体、`images/drawlogo128.png` 与
+  `images/drawlogo256.png`（后两者保留上游文件名以匹配代码引用），并以
+  `images/manifest.json` 品牌化版本整体替换（名称 MindmapAI、主题色
+  `#6D28D9`）。
 
 ### desktop/（jgraph/drawio-desktop，7 个文件）
 
 - `src/main/electron.js` — 注入：`MM_WEBAPP_DIR` 加载目录覆盖与打包态回退；
   4 个 IPC 通道 `mmAiGetSecret` / `mmAiSetSecret` / `mmAiDeleteSecret`
-  （safeStorage 加密存储 API Key）与 `mmAiFetch`（主进程转发网络请求）。
+  （safeStorage 加密存储 API Key）与 `mmAiFetch`（主进程转发网络请求）；
+  窗口图标路径改为注入的 `images/mindmapai256.png`。
   注入块源文件：`patches/desktop/electron.mindmapai-block.js`。
 - `src/main/disableUpdate.js` — fork 版本号下禁用自动更新检查
   （避免误提示"更新到官方 drawio"；源文件 `patches/desktop/disableUpdate.js`）。
@@ -47,6 +54,8 @@ AI 思维导图桌面应用。
   配置，webapp 经 extraResources 内置；源文件在 `patches/desktop/`）。
 - `scripts/cdp-regression.mjs`、`scripts/cdp-set-and-close.mjs` — **新增**
   （基于 Chrome DevTools Protocol 的打包版回归脚本；源文件在 `patches/desktop/`）。
+- `build/icon.ico`、`build/icon.png` — 覆盖为原创 MindmapAI 图标
+  （exe / NSIS / MSI 快捷方式与 Linux dir 目标取用）。
 
 以上每一处注入都带幂等标记：重复运行 setup 脚本不会重复注入；上游文件与预期
 不符时脚本直接报错退出。
@@ -68,6 +77,8 @@ Apache-2.0 条款为准，并需自行遵守上游许可证与 JGraph 的商标�
 
 "draw.io"、"drawio" 及相关标识是 JGraph AG 的商标。本项目是独立的二次开发
 发行版，产品名为 **MindmapAI**，与 JGraph AG 无关联，亦未获得其背书。
+本项目的应用图标与品牌资产为原创设计（`patches/assets/mindmapai-icon.svg`），
+不包含 JGraph 的任何图形元素。
 
 ## 隐私说明
 

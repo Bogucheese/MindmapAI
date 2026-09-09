@@ -260,6 +260,15 @@ function applyWebapp() {
     label: 'webapp/dia_zh.txt i18n (ZH)',
   });
   copyFile(path.join(PATCHES, 'webapp', 'test-article.html'), path.join(app, 'test-article.html'), 'webapp/test-article.html fixture');
+
+  // brand: original MindmapAI artwork replaces upstream icons (see patches/assets/mindmapai-icon.svg)
+  copyFile(path.join(PATCHES, 'webapp', 'favicon.ico'), path.join(app, 'favicon.ico'), 'webapp/favicon.ico');
+  const img = (name) => path.join(app, 'images', name);
+  for (const f of ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png',
+    'icon-512-maskable.png', 'drawlogo128.png', 'mindmapai256.png']) {
+    copyFile(path.join(PATCHES, 'webapp', f), img(f), `webapp/images/${f}`);
+  }
+  copyFile(path.join(PATCHES, 'webapp', 'manifest.json'), img('manifest.json'), 'webapp/images/manifest.json');
 }
 
 function applyDesktop() {
@@ -310,6 +319,16 @@ function applyDesktop() {
     path.join(DESKTOP_DIR, 'scripts', 'cdp-regression.mjs'), 'desktop/scripts/cdp-regression.mjs');
   copyFile(path.join(PATCHES, 'desktop', 'cdp-set-and-close.mjs'),
     path.join(DESKTOP_DIR, 'scripts', 'cdp-set-and-close.mjs'), 'desktop/scripts/cdp-set-and-close.mjs');
+
+  // brand: original MindmapAI artwork (see patches/assets/mindmapai-icon.svg)
+  replaceOnce(electronJs, {
+    marker: 'images/mindmapai256.png',
+    from: 'images/drawlogo256.png',
+    to: 'images/mindmapai256.png',
+    label: 'desktop/electron.js window icon path',
+  });
+  copyFile(path.join(PATCHES, 'desktop', 'icon.ico'), path.join(DESKTOP_DIR, 'build', 'icon.ico'), 'desktop/build/icon.ico');
+  copyFile(path.join(PATCHES, 'desktop', 'icon.png'), path.join(DESKTOP_DIR, 'build', 'icon.png'), 'desktop/build/icon.png');
 }
 
 function buildPlugin() {

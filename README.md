@@ -1,4 +1,20 @@
-# MindmapAI — AI 思维导图制作器
+<p align="center">
+  <img src="docs/icon.png" width="118" alt="MindmapAI">
+</p>
+
+<h1 align="center">MindmapAI</h1>
+
+<p align="center">
+  <b>AI 思维导图制作器 · 基于 drawio 二次开发</b><br>
+  <sub>AI-powered mind mapping &amp; thinking charts — built on drawio</sub>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-2563EB"></a>&nbsp;
+  <img alt="Platform: Windows | Browser" src="https://img.shields.io/badge/platform-Windows%20%7C%20Browser-8B5CF6">&nbsp;
+  <img alt="Charts: 12 types" src="https://img.shields.io/badge/thinking%20charts-12%20types-F59E0B">&nbsp;
+  <a href="NOTICE.md"><img alt="Upstream: drawio v31.4.2" src="https://img.shields.io/badge/upstream-drawio%20v31.4.2-lightgrey"></a>
+</p>
 
 > 给它一个**主题**、一段**文字**或一个**网页链接**，自动生成结构清晰、可溯源、可继续编辑的思维导图与思考图表。完整保留 drawio 编辑器的全部能力。
 
@@ -155,10 +171,11 @@ cd ai && npm run typecheck && npm test && npm run build
 ## 路线图
 
 - [x] MVP：主题/文本/链接三来源生成、评审管线、12 种思考图表、桌面版打包
+- [x] 原创应用图标与 PWA 品牌（替换上游品牌元素，见 `patches/assets/mindmapai-icon.svg`）
 - [ ] 对话式侧边栏、导图优化与总结
 - [ ] 文档转导图（Markdown / Word / PDF）、Markdown 双向编辑
 - [ ] XMind / Freeplane / OPML 导入
-- [ ] macOS / Linux 打包、安装包代码签名、应用图标与产品视觉终稿
+- [ ] macOS / Linux 打包、安装包代码签名
 
 ## 许可与致谢
 
