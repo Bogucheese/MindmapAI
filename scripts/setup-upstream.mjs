@@ -173,14 +173,27 @@ function ensureUpstream(dir, cfg, repoOverride, label) {
     log(`${label}: ${dir} present (not a git repo) — clone skipped`);
     return;
   }
-  if (!fs.existsSync(dir)) {
-    const repo = repoOverride ?? cfg.repo;
-    log(`${label}: cloning ${repo} (pinned: ${cfg.commit}) — this downloads upstream source`);
+  if (fs.existsSync(dir)) die(`${label}: ${dir} 已存在且不完整 — 删除后重试`);
+  const repo = repoOverride ?? cfg.repo;
+  log(`${label}: fetching ${repo} (pinned: ${cfg.commit}) — this downloads upstream source`);
+  // 优先浅获取固定提交（运行应用不需要上游历史，下载量小得多）；失败再回退全量克隆
+  const shallowSteps = [
+    ['init', '-q', dir],
+    ['-C', dir, 'remote', 'add', 'origin', repo],
+    ['-C', dir, 'fetch', '--depth', '1', 'origin', cfg.commit],
+  ];
+  const shallowOk = shallowSteps.every(
+    (args) => spawnSync('git', args, { stdio: 'inherit' }).status === 0,
+  ) && spawnSync('git', ['-C', dir, 'checkout', '--detach', cfg.commit], { stdio: 'inherit' }).status === 0;
+  if (!shallowOk) {
+    log(`${label}: shallow fetch failed — falling back to full clone`);
+    fs.rmSync(dir, { recursive: true, force: true });
     const r = spawnSync('git', ['clone', repo, dir], { stdio: 'inherit' });
-    if (r.status !== 0) die(`${label}: git clone failed (network? try --repo-${label} with a mirror)`);
-    const c = spawnSync('git', ['checkout', '--detach', cfg.commit], { cwd: dir, stdio: 'inherit' });
-    if (c.status !== 0) die(`${label}: checkout of pinned commit ${cfg.commit} failed`);
+    if (r.status !== 0)
+      die(`${label}: git clone failed (network? GitHub 直连不稳时可加镜像参数，如 --repo-${label} https://ghproxy.net/https://github.com/jgraph/${label === 'webapp' ? 'drawio' : 'drawio-desktop'}.git)`);
   }
+  const c = spawnSync('git', ['checkout', '--detach', cfg.commit], { cwd: dir, stdio: 'inherit' });
+  if (c.status !== 0) die(`${label}: checkout of pinned commit ${cfg.commit} failed`);
 }
 
 // ---------- desktop/package.json ordered edit ----------
