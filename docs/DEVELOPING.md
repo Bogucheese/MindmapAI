@@ -34,6 +34,9 @@ ai/src/**  ──esbuild──▶  webapp/src/main/webapp/js/ai/mindmap-ai.js
 ## 常用命令
 
 ```bash
+# 一键启动（首次自动执行 ⓪，然后起静态服务器并尝试打开浏览器）
+node scripts/start.mjs            # Windows 可双击根目录 start.cmd；支持 --port/--host/--no-open
+
 # ⓪ 首次准备：拉取上游（pinned）+ 注入接入点 + 构建插件（幂等，可反复执行）
 node scripts/setup-upstream.mjs
 

@@ -92,6 +92,14 @@ Coding Plan）、智谱 GLM、OpenAI、Kimi For Coding、Moonshot、通义千问
 ### 浏览器版开发模式
 
 ```bash
+# 一键启动（首次运行自动拉取上游并构建，需网络；之后直接启动服务器并打开浏览器）
+node scripts/start.mjs
+# Windows 下也可直接双击仓库根目录的 start.cmd
+```
+
+手动分步执行（与上面等价）：
+
+```bash
 # 0. 拉取上游编辑器源码（pinned 版本）并注入接入点、构建插件（首次执行）
 node scripts/setup-upstream.mjs
 
