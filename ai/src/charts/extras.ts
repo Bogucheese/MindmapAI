@@ -77,7 +77,7 @@ export function parseExtrasSlots(raw: string): ExtrasSlots | null {
         if (!Array.isArray(r)) continue;
         const row = r.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim().slice(0, 30));
         if (row.length === table.headers.length) table.rows.push(row);
-        if (table.rows.length >= 5) break;
+        if (table.rows.length >= 8) break;
       }
     }
   }

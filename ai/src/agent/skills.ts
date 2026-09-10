@@ -28,6 +28,7 @@ export function buildDistillSystemPrompt(language: OutputLanguage, maxNotes: num
     '- "content" is one condensed knowledge point (under 25 words); keep concrete facts, definitions, distinctions, and numbers.',
     '- Extract each bullet, table row, and named example that carries a distinct fact as a SEPARATE note — never merge several facts into one note.',
     '- "quote" is a VERBATIM excerpt (under 40 words) copied from the given text that supports the content.',
+    '- Terminology: use ONE consistent term for the same entity across notes (pick a single name — never both "Agent" and "AI Agent").',
     '- "id" must be "n1", "n2", ... in order.',
     `- ${languageRule}`,
     'If the text contains nothing worth keeping, reply {"notes": []}.',
@@ -56,6 +57,11 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
       'The root object represents the topic itself. Every non-root node MUST carry "source": {"noteIds": [...]}.',
       `- Maximum depth: ${c.depth}; maximum ${c.maxChildren} children per node; at most ${c.maxNodes} nodes in total.`,
       '- Labels are concise (preferably under 20 characters), no numbering, no trailing punctuation.',
+      '- Terminology: use ONE consistent term for the same concept everywhere (never "Agent" in one node and "AI Agent" in another).',
+      '- Sibling nodes must belong to the SAME dimension (all components, all kinds, or all steps). Never place a contrasting or auxiliary item (e.g. "traditional software" when the siblings are system components) among structural siblings.',
+      '- No duplicates: the same fact or concept appears in exactly ONE node; merge repeated content instead of restating it in another branch.',
+      '- Weight: top-level branches are the major themes of the topic; meta information (audience, reading advice, background remarks) is nested under a fitting theme or dropped, never a top-level branch.',
+      '- Group long lists: when a node would exceed ' + c.maxChildren + ' leaf children, introduce intermediate category nodes instead of one flat list.',
       '- Do NOT invent knowledge that is absent from the notes.',
       `- ${LANGUAGE_RULES[c.language]}`,
       'Reply with the JSON object ONLY: no markdown fences, no explanations, no comments.',
@@ -69,6 +75,9 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
     '- Keys are section paths COPIED VERBATIM from the skeleton lines (the part before " (n points)"), e.g. "定义 AI 代理 > 什么是 AI 代理？".',
     '- Each leaf: {"label": concise (under 20 characters, no numbering), "source": {"noteIds": [...]} referencing the knowledge points it merges. One leaf MAY merge several related notes; when notes enumerate concrete items use the items as separate leaves.',
     '- Per-section leaf budgets are given in the user prompt — do not exceed them.',
+    '- Terminology: use ONE consistent term for the same concept across ALL sections (never both "Agent" and "AI Agent").',
+    '- Leaves under one section are same-dimension items; never mix a contrasting item into a component list.',
+    '- No duplicates: the same concept is placed in exactly ONE section; do not restate it under another.',
     '- Do NOT invent knowledge that is absent from the notes.',
     `- ${LANGUAGE_RULES[c.language]}`,
     'Reply with the JSON object ONLY: no markdown fences, no explanations, no comments.',
@@ -116,7 +125,7 @@ export function buildCritiqueSystemPrompt(): string {
     '- grounding: are node labels supported by the referenced notes? Penalize nodes with no/unknown noteIds or distorted claims.',
     '- coverage: does every top-level skeleton section have a branch? A missing top-level section is a serious defect. Detail depth may be reduced to fit the node budget — condensed leaves are expected, NOT defects; only report missing sections or completely bare branches.',
     '- specificity: are leaf nodes concrete? A leaf that is a vague category word ("concepts", "其他") loses points.',
-    '- structure: balanced depth and branching, no duplicated branches.',
+    '- structure: balanced depth and branching, no duplicated branches. Structure ALSO loses points for: two different names for the same concept (e.g. "Agent" and "AI Agent" mixed); the same content restated in different branches; siblings mixing dimensions (a contrast object placed among system components); and flat lists of more than 8 leaves without intermediate grouping. If an "Auto-checker findings" section is provided, weigh each finding here.',
     'verdict "revise" when any score is below 70; otherwise "pass".',
     'feedback: one or two concrete, actionable sentences (same language as the labels).',
     'Reply with the JSON object ONLY: no markdown fences, no explanations.',
@@ -127,12 +136,17 @@ export function buildCritiqueUserPrompt(
   topic: string,
   tree: MindmapTree,
   notes: DistilledNote[],
-  skeletonText?: string
+  skeletonText?: string,
+  autoFindings?: string[]
 ): string {
   const noteLines = notes.map((n) => `- [${n.id}] ${n.content}${n.quote !== '' ? ` (quote: ${n.quote.slice(0, 80)})` : ''}`);
   const skeleton =
     skeletonText != null && skeletonText !== ''
       ? `\n\nSection skeleton (branches must mirror this; bare branches are defects):\n${skeletonText.slice(0, 1200)}`
+      : '';
+  const findings =
+    autoFindings != null && autoFindings.length > 0
+      ? `\n\nAuto-checker findings (deterministic; factor these into the structure score):\n- ${autoFindings.join('\n- ')}`
       : '';
   return (
     `Topic: ${topic.trim()}\n\n` +
@@ -140,7 +154,8 @@ export function buildCritiqueUserPrompt(
     JSON.stringify(tree, null, 1).slice(0, 5000) +
     '\n\nKnowledge points:\n' +
     noteLines.join('\n').slice(0, 5000) +
-    skeleton
+    skeleton +
+    findings
   );
 }
 
@@ -153,6 +168,7 @@ export function buildExpandSystemPrompt(c: GenerationConstraints, withNotes: boo
     'Rules:',
     `- At most ${c.maxChildren} children.`,
     '- Child labels are concise (preferably under 20 characters), with no numbering and no trailing punctuation.',
+    '- Reuse the EXACT terms the mind map already uses for the same concepts; do not introduce variant names.',
     '- Do not repeat sibling nodes or existing children of the node; go deeper, not sideways.',
     withNotes
       ? '- Knowledge points are provided: ground each child where possible and set "source": {"noteIds": [...]} to the supporting ids; omit "source" when a child is structural.'
@@ -214,6 +230,10 @@ export function buildAutotuneUserPrompt(
 
 export function buildChartSystemPrompt(meta: ChartTypeMeta): string {
   const shapeCatalog = meta.id === 'flow' ? `\n可用形状部件(槽位 "shape" 字段取其 key):${SHAPE_CATALOG_PROMPT}。按语义选择:开始/结束用 terminator,判断用 decision,输入输出用 data,存档用 document,存储用 database,准备用 preparation,人工输入用 manualInput,人工操作用 manualOperation,延迟用 delay,展示用 display,普通步骤用 process。充分但合理地使用部件。` : '';
+  const arrowSemantics =
+    meta.id === 'flow' || meta.id === 'multiFlow' || meta.id === 'bridge'
+      ? '- Arrow semantics: arrows express sequence or cause-effect ONLY. A part-whole / membership relation is expressed by grouping or hierarchy, never by an arrow; a contrast is expressed by parallel placement, never by an arrow.'
+      : '';
   return [
     '[MM-STAGE:chart]',
     `You are a diagram design expert. The user wants a "${meta.name}" (a thinking map type).`,
@@ -222,6 +242,9 @@ export function buildChartSystemPrompt(meta: ChartTypeMeta): string {
     `Return strict JSON with EXACTLY this shape: ${meta.slots}`,
     `Example: ${meta.example}`,
     '- Labels concise (under 20 characters), concrete, no numbering, no trailing punctuation.',
+    '- Terminology: use ONE consistent term for the same concept across all labels (never both "Agent" and "AI Agent").',
+    '- No duplicate nodes: the same concept appears exactly once.',
+    arrowSemantics,
     '- Do NOT invent knowledge that is absent from the user content; when the content is thin, produce fewer but meaningful items within the minimum ranges.',
     '- Write labels in the same language as the user content.',
     shapeCatalog,

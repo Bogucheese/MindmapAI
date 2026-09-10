@@ -12,6 +12,7 @@ import type { ChartElement } from '../charts/layout';
 import { generateExtras, type ExtrasResult } from '../charts/extras-gen';
 import { buildRepairPrompt, type GenerationConstraints, type OutputLanguage } from '../ai/prompts';
 import { extractJson, parseMindmapTree, type MindmapTree } from '../ai/schema';
+import { dedupeSiblingLabels, findStructureIssues } from './validate';
 import type { AiProviderSettings } from '../settings/settings';
 import {
   buildArchitectReviseUserPrompt,
@@ -632,6 +633,13 @@ export async function generateMindmapFromSource(
   }
   let tree = built.tree;
   let dropped = built.dropped;
+  // 确定性去重：同级归一化同名节点合并（重复概念/术语漂移的硬性兜底），
+  // 回炉 revise 后同样再跑一遍。
+  const deduped = dedupeSiblingLabels(tree);
+  tree = deduped.tree;
+  if (deduped.merged > 0) {
+    console.info('[MindmapAI] deduped sibling labels:', deduped.merged);
+  }
 
   // CRITIQUE：rubric 评分；不达标（任一维度 <70）携反馈回炉一次
   let critique: CritiqueReport | null = null;
@@ -643,7 +651,7 @@ export async function generateMindmapFromSource(
     onProgress({ stage: 'critique' });
     const critiqueMessages: ChatMessage[] = [
       { role: 'system', content: buildCritiqueSystemPrompt() },
-      { role: 'user', content: buildCritiqueUserPrompt(topic, tree, architectNotes, skeleton.text) },
+      { role: 'user', content: buildCritiqueUserPrompt(topic, tree, architectNotes, skeleton.text, findStructureIssues(tree)) },
     ];
     const res = await chat(settings, apiKey, critiqueMessages, {
       maxTokens: CRITIQUE_MAX_TOKENS,
@@ -673,9 +681,13 @@ export async function generateMindmapFromSource(
         { role: 'user', content: reviseUser },
       ]);
       if (revised.ok) {
-        tree = revised.tree;
+        const rededuped = dedupeSiblingLabels(revised.tree);
+        tree = rededuped.tree;
         dropped += revised.dropped;
         revisions = 1;
+        if (rededuped.merged > 0) {
+          console.info('[MindmapAI] deduped sibling labels after revise:', rededuped.merged);
+        }
       }
       // 重构解析失败：保留原树（评审意见已尽力），不算失败
     }
