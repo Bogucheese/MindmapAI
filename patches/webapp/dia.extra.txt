@@ -125,3 +125,7 @@ aiAgentFixing=Self-check found issues; giving the agent one round to fix them...
 aiAgentForcedStop=Tool-call cap reached; finalized with the current map.
 aiAgentFailed=Agent run failed
 aiAgentDoneStatus=Agent finished
+aiSend=Send
+aiCommandPlaceholder=Instruct the agent, e.g. unify the term to AI Agent
+aiAgentNoMap=No AI-generated map yet — generate one first. Agent commands edit the last AI-built map.
+aiAgentChangesDone=Changes applied.

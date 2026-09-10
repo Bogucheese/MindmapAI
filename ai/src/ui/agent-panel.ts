@@ -8,7 +8,16 @@
  */
 
 import type { AgentEvent } from '../agent/events';
+import type { MindmapTree } from '../ai/schema';
+import type { DistilledNote } from '../agent/types';
 import { t } from '../i18n/keys';
+
+/** 面板上下文:最近一次 AI 生成的导图,供命令 Agent 修改 */
+export interface AgentPanelContext {
+  tree: MindmapTree;
+  notes: DistilledNote[];
+  layout: 'radial' | 'tree' | 'tree-vertical';
+}
 
 export interface AgentPanelHandle {
   show(): void;
@@ -17,6 +26,11 @@ export interface AgentPanelHandle {
   isVisible(): boolean;
   append(event: AgentEvent): void;
   clear(): void;
+  getContext(): AgentPanelContext | null;
+  setContext(ctx: AgentPanelContext | null): void;
+  setBusy(busy: boolean): void;
+  /** 用户在输入框发送指令时的回调(由宿主绑定) */
+  onCommand: ((text: string) => Promise<void>) | null;
 }
 
 interface PanelDom {
@@ -25,6 +39,8 @@ interface PanelDom {
   empty: HTMLDivElement;
   clearBtn: HTMLDivElement;
   closeBtn: HTMLDivElement;
+  commandInput: HTMLInputElement;
+  sendBtn: HTMLDivElement;
 }
 
 const SCORE_LABELS: Array<{ key: string; labelKey: string; fallback: string; color: string }> = [
@@ -65,11 +81,20 @@ function buildPanelDom(): PanelDom {
   const empty = el('div', 'font-size:9pt;color:#94A3B8;padding:12px 4px;line-height:1.5;', t('aiAgentEmpty', 'Waiting for a run — the agent\u2019s distilled notes, review feedback and more will stream here.'));
   log.appendChild(empty);
 
+  const inputRow = el('div', 'display:flex;gap:6px;padding:8px 10px;border-top:1px solid #E2E8F0;background:#FFFFFF;');
+  const commandInput = document.createElement('input');
+  commandInput.setAttribute('type', 'text');
+  commandInput.style.cssText = 'flex:1 1 auto;font-size:9pt;padding:4px 8px;border:1px solid #CBD5E1;border-radius:6px;outline:none;';
+  commandInput.placeholder = t('aiCommandPlaceholder', 'Instruct the agent, e.g. unify the term to AI Agent');
+  const sendBtn = el('button', 'flex:0 0 auto;font-size:9pt;padding:4px 10px;border:none;border-radius:6px;background:#6D28D9;color:#fff;cursor:pointer;', t('aiSend', 'Send'));
+  inputRow.appendChild(commandInput);
+  inputRow.appendChild(sendBtn);
   root.appendChild(header);
   root.appendChild(log);
+  root.appendChild(inputRow);
   document.body.appendChild(root);
 
-  return { root, log, empty, clearBtn, closeBtn };
+  return { root, log, empty, clearBtn, closeBtn, commandInput, sendBtn };
 }
 
 export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
@@ -78,6 +103,8 @@ export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
 
   const dom = buildPanelDom();
   let userScrolledUp = false;
+  let context: AgentPanelContext | null = null;
+  let busy = false;
   dom.log.addEventListener('scroll', () => {
     const log = dom.log;
     userScrolledUp = log.scrollHeight - log.scrollTop - log.clientHeight > 48;
@@ -118,9 +145,43 @@ export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
     isVisible: () => dom.root.style.display !== 'none',
     append,
     clear,
+    getContext: () => context,
+    setContext: (ctx) => {
+      context = ctx;
+    },
+    setBusy: (b) => {
+      busy = b;
+      applyBusy();
+    },
+    onCommand: null,
   };
   dom.clearBtn.addEventListener('click', () => clear());
   dom.closeBtn.addEventListener('click', () => handle.hide());
+
+  const applyBusy = (): void => {
+    dom.commandInput.disabled = busy;
+    (dom.sendBtn as unknown as HTMLButtonElement).disabled = busy;
+    dom.sendBtn.style.opacity = busy ? '0.5' : '1';
+  };
+  const send = (): void => {
+    const text = dom.commandInput.value.trim();
+    if (text === '' || busy || handle.onCommand == null) return;
+    dom.commandInput.value = '';
+    append({ type: 'user', text });
+    busy = true;
+    applyBusy();
+    void Promise.resolve(handle.onCommand(text)).finally(() => {
+      busy = false;
+      applyBusy();
+    });
+  };
+  dom.sendBtn.addEventListener('click', () => send());
+  dom.commandInput.addEventListener('keydown', (ev) => {
+    if ((ev as KeyboardEvent).key === 'Enter') {
+      ev.preventDefault();
+      send();
+    }
+  });
 
   store.__mmAgentPanel = { ...handle, dom };
   return store.__mmAgentPanel;
@@ -142,6 +203,10 @@ function renderEvent(event: AgentEvent): HTMLElement {
       return renderCritique(event);
     case 'revise':
       return renderRevise(event);
+    case 'user':
+      return renderLine(event.text, '#FFFFFF', '#6D28D9');
+    case 'assistant':
+      return renderLine(event.text, '#1E293B', '#EDE9FE');
     case 'tool':
       return renderLine(`⚙ ${event.name} ${event.detail}`, '#475569', '#F1F5F9');
     case 'node':

@@ -30,6 +30,10 @@ export type AgentEvent =
   | { type: 'revise'; feedback: string }
   /** 单张图表完成(全景/单图共用) */
   | { type: 'chart'; name: string; index?: number; total?: number; nodes: number }
+  /** 命令输入:用户在面板输入框发送的指令(回显) */
+  | { type: 'user'; text: string }
+  /** 命令输入:Agent 的答复文本 */
+  | { type: 'assistant'; text: string }
   /** Agent 模式:一次工具调用(name+结果摘要) */
   | { type: 'tool'; name: string; detail: string }
   /** Agent 模式:一个节点被放置/更新 */

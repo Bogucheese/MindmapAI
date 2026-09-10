@@ -125,3 +125,7 @@ aiAgentFixing=自检发现问题，让 Agent 进行一轮修正……
 aiAgentForcedStop=达到工具调用上限，按当前进度收尾。
 aiAgentFailed=Agent 运行失败
 aiAgentDoneStatus=Agent 完成
+aiSend=发送
+aiCommandPlaceholder=给 Agent 下指令，例如：把术语统一为 AI Agent
+aiAgentNoMap=画布上还没有 AI 生成的导图——请先生成一张（Agent 指令修改的是最近一次 AI 生成的导图）。
+aiAgentChangesDone=已应用修改。

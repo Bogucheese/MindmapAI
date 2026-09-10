@@ -6,11 +6,15 @@
 import { showGenerateDialog, showSettingsDialog, showShapeGalleryDialog } from './dialogs';
 import { showChartEditDialog } from './chart-edit';
 import { ensureAgentPanel } from './agent-panel';
+import { bindAgentCommands } from './agent-commands';
 import { revealCellsProgressively } from './reveal';
 import { buildMindmapFromTree } from '../mindmap/tree-model';
 import { DEMO_TREE } from '../mindmap/fixture';
 
 export function registerActions(ui: DrawioPluginApi): void {
+  // Agent 面板:命令输入框 → 修改当前画布上的导图
+  bindAgentCommands(ui, ensureAgentPanel(ui));
+
   // AI → 生成思维导图：主题 → DeepSeek → 上画布（M6）
   ui.actions.addAction('aiGenerate', function () {
     showGenerateDialog(ui);

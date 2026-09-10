@@ -10,6 +10,7 @@
 import { generateMindmapTree, testConnection } from '../ai/client';
 import { generateMindmapFromSource } from '../agent/pipeline';
 import { runAgentGeneration } from '../agent/agent-loop';
+import { runAgentChart } from '../agent/agent-chart';
 
 import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
 import { ensureAgentPanel } from './agent-panel';
@@ -709,6 +710,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             }
             const builtMap = buildMindmapFromTree(ui, agent.tree, options);
             revealCellsProgressively(graph, builtMap.placedCells, 4500);
+            agentPanel.setContext({ tree: agent.tree, notes: agent.notes, layout: prefs.layout });
             console.info('[MindmapAI] agent generated:', agent.stats, agent.summary);
             setStatus(`${t('aiAgentDoneStatus', 'Agent finished')}: ${agent.summary}`, COLOR_NOTICE);
             ui.hideDialog();
@@ -796,6 +798,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           const builtMap = buildMindmapFromTree(ui, result.tree, options);
           // 逐个放置动画:DFS 序渐显(纯视觉,不进撤销栈);extras 在主图放完后接续
           revealCellsProgressively(graph, builtMap.placedCells, 4500);
+          agentPanel.setContext({ tree: result.tree, notes: result.notes, layout: prefs.layout });
           // 复合画布:extras(支线小图/表格/关系图)排到主图右侧
           if (result.extras != null && result.extras.length > 0) {
             const boundsAfter = graph.getGraphBounds();
@@ -885,7 +888,12 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                   setProgress(t('aiStageRender', 'Rendering...'));
                 },
               })
-            : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
+            : genPrefs.agentMode === true
+              ? runAgentChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
+                  isCancelled: () => cancelled,
+                  onEvent: onAgentEvent,
+                })
+              : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
                 direction: chartDirection,
                 isCancelled: () => cancelled,
                 onEvent: onAgentEvent,
@@ -1152,6 +1160,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           try {
             const builtMap = buildMindmapFromTree(ui, result.tree, options);
             revealCellsProgressively(graph, builtMap.placedCells, 4500);
+            ensureAgentPanel(ui).setContext({ tree: result.tree, notes: [], layout: genPrefs.layout });
             console.info('[MindmapAI] generated:', result.stats);
             ui.hideDialog();
           } catch (err) {
