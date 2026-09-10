@@ -1,3 +1,9 @@
+<div align="center">
+
+**简体中文** | [English](README.en.md)
+
+</div>
+
 <p align="center">
   <img src="docs/icon.png" width="118" alt="MindmapAI">
 </p>
@@ -37,6 +43,8 @@ MindmapAI 以 drawio 插件的形式注入 AI 生成能力，并以 Electron 打
   公共抓取代理），并内置零依赖的[本地抓取代理](ai/tools/local-fetch-proxy.mjs)。
 - **评审管线**：提炼要点 → 架构导图 → 自动评审，四维度评分不达标时自动回炉重构
   一次；生成中可随时取消。
+- **确定性质量校验**：同级重复概念自动合并；跨分支重复与超长平铺列表报告给
+  评审环节；prompt 层强制术语一致、同级同维度、长列表分组收敛。
 - **AI 自动参数**：层数、每层分支数、节点上限由 AI 按内容密度自动决定，也可手动
   指定（层级 1-6 / 分支 1-10 / 节点上限 5-200）。
 - **详细模式**：全部要点逐条成叶，原文引文直接成为画布上的引用节点；大来源还会
@@ -187,8 +195,7 @@ cd ai && npm run typecheck && npm test && npm run build
 
 ## 许可与致谢
 
-- 本仓库全部内容（`ai/`、`patches/`、`scripts/`、`docs/`）为原创代码，
-  以 [Apache-2.0](LICENSE) 发布。
+- 本项目以 [Apache-2.0](LICENSE) 发布。
 - 运行时拉取的上游源码（jgraph/drawio 与 jgraph/drawio-desktop，均为
   Apache-2.0）不在本仓库分发，其许可证文件随上游克隆保持原样；对本仓库
   不分发、但对上游源码所做的全部注入已在 [NOTICE.md](NOTICE.md) 中逐项声明。
