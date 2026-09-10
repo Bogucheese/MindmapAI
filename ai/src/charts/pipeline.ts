@@ -8,9 +8,10 @@ import { distillNotes } from '../agent/pipeline';
 import { parseJsonLoose } from '../agent/pipeline';
 import type { AiProviderSettings } from '../settings/settings';
 import type { DistilledNote, SourceDoc } from '../agent/types';
-import { CHART_TYPES, type ChartTypeId } from './catalog';
+import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from './catalog';
 import { CHART_SHAPES } from './shapes';
 import { layoutChart, type ChartElement, type ChartSlots, type ChartDirection } from './layout';
+import { layoutGallery } from './gallery';
 import { validateChartSlots, chartNodeEstimate } from './validate';
 import { buildChartSystemPrompt, buildChartUserPrompt, buildShapeGalleryPrompt } from '../agent/skills';
 
@@ -33,27 +34,45 @@ export async function generateChart(
   input: { topic: string; doc?: SourceDoc },
   opts: ChartGenerationOptions = {}
 ): Promise<ChartGenerationResult> {
-  const chat = opts.chat ?? chatWithJsonFallback;
-  const timeoutMs = opts.timeoutMs ?? 60000;
-  const isCancelled = () => opts.isCancelled?.() === true;
-
-  // 提炼(有来源时):与导图共用同一阶段
-  let notes: DistilledNote[] = [];
-  if (input.doc != null && input.doc.chunks.length > 0) {
-    const dist = await distillNotes(settings, apiKey, input.doc, 'auto', {
-      isCancelled: opts.isCancelled,
-      timeoutMs,
-      chat: opts.chat,
-      onProgress: (current, total) => opts.onProgress?.('distill', current, total),
-    });
-    if (!dist.ok) {
-      return { ok: false, kind: dist.kind, status: dist.status, detail: dist.detail };
-    }
-    notes = dist.notes;
-  }
-  if (isCancelled()) {
+  const notes = await distillForInput(settings, apiKey, input, opts);
+  if ('fail' in notes) return notes.fail;
+  if (opts.isCancelled?.() === true) {
     return { ok: false, kind: 'cancelled', detail: '' };
   }
+  return chartFromNotes(settings, apiKey, chartType, input.topic, notes.value, opts);
+}
+
+/** 有来源时提炼(与导图共用同一阶段);无来源返回空要点。 */
+async function distillForInput(
+  settings: AiProviderSettings,
+  apiKey: string,
+  input: { topic: string; doc?: SourceDoc },
+  opts: ChartGenerationOptions
+): Promise<{ value: DistilledNote[] } | { fail: { ok: false; kind: ChatFailureKind | 'cancelled' | 'schema' | 'no-notes'; status?: number; detail: string } }> {
+  if (input.doc == null || input.doc.chunks.length === 0) return { value: [] };
+  const dist = await distillNotes(settings, apiKey, input.doc, 'auto', {
+    isCancelled: opts.isCancelled,
+    timeoutMs: opts.timeoutMs ?? 60000,
+    chat: opts.chat,
+    onProgress: (current, total) => opts.onProgress?.('distill', current, total),
+  });
+  if (!dist.ok) {
+    return { fail: { ok: false, kind: dist.kind, status: dist.status, detail: dist.detail } };
+  }
+  return { value: dist.notes };
+}
+
+/** 单图:槽位协议 architect → 校验 → 确定性布局(提炼已完成,不再重复调用) */
+async function chartFromNotes(
+  settings: AiProviderSettings,
+  apiKey: string,
+  chartType: ChartTypeId,
+  topic: string,
+  notes: DistilledNote[],
+  opts: ChartGenerationOptions
+): Promise<ChartGenerationResult> {
+  const chat = opts.chat ?? chatWithJsonFallback;
+  const timeoutMs = opts.timeoutMs ?? 60000;
 
   // 槽位协议 architect
   opts.onProgress?.('architect');
@@ -61,7 +80,7 @@ export async function generateChart(
     { role: 'system', content: buildChartSystemPrompt(CHART_TYPES[chartType]) },
     {
       role: 'user',
-      content: `${buildChartUserPrompt(input.topic, notes, CHART_TYPES[chartType])}\n\n节点数预算:大约 ${chartNodeBudget(chartType)} 个。`,
+      content: `${buildChartUserPrompt(topic, notes, CHART_TYPES[chartType])}\n\n节点数预算:大约 ${chartNodeBudget(chartType)} 个。`,
     },
   ];
   const res = await chat(settings, apiKey, messages, { maxTokens: 2048, timeoutMs, temperature: 0.5 });
@@ -98,6 +117,61 @@ function chartNodeBudget(type: ChartTypeId): number {
     multiFlow: 12, brace: 10, venn: 14, fishbone: 20, timeline: 10, bridge: 8, org: 20,
   };
   return budgets[type] ?? 20;
+}
+
+
+/* ==================== 全景画布:一次生成全部思考图 ==================== */
+
+export interface ChartGalleryResult {
+  ok: true;
+  /** 拼版后的全部元素(一次 buildChartElements 入画布) */
+  elements: ChartElement[];
+  charts: Array<{ type: ChartTypeId; elements: ChartElement[] }>;
+  /** 单图失败清单(不影响其余图,部分成功即可用) */
+  failed: Array<{ type: ChartTypeId; detail: string }>;
+  stats: { notes: number };
+}
+
+/** 全景画布:提炼一次,12 种思考图逐张生成(单张失败跳过),网格拼版到同一画布。 */
+export async function generateChartGallery(
+  settings: AiProviderSettings,
+  apiKey: string,
+  input: { topic: string; doc?: SourceDoc },
+  opts: ChartGenerationOptions = {}
+): Promise<{ ok: false; kind: ChatFailureKind | 'cancelled' | 'schema' | 'no-notes'; status?: number; detail: string; raw?: string } | ChartGalleryResult> {
+  const isCancelled = () => opts.isCancelled?.() === true;
+  const notes = await distillForInput(settings, apiKey, input, opts);
+  if ('fail' in notes) return notes.fail;
+  if (isCancelled()) return { ok: false, kind: 'cancelled', detail: '' };
+
+  const charts: Array<{ type: ChartTypeId; title: string; elements: ChartElement[] }> = [];
+  const failed: Array<{ type: ChartTypeId; detail: string }> = [];
+  for (let i = 0; i < CHART_TYPE_ORDER.length; i++) {
+    const type = CHART_TYPE_ORDER[i];
+    if (isCancelled()) return { ok: false, kind: 'cancelled', detail: '' };
+    opts.onProgress?.('architect', i + 1, CHART_TYPE_ORDER.length);
+    const r = await chartFromNotes(settings, apiKey, type, input.topic, notes.value, opts);
+    if (r.ok) {
+      charts.push({ type, title: CHART_TYPES[type].name, elements: r.elements });
+    } else if (r.kind === 'cancelled') {
+      return { ok: false, kind: 'cancelled', detail: '' };
+    } else {
+      failed.push({ type, detail: r.detail });
+      console.warn('[MindmapAI] gallery chart failed:', type, r.detail);
+    }
+  }
+  if (charts.length === 0) {
+    return { ok: false, kind: 'schema', detail: '全部图型生成失败。' };
+  }
+  opts.onProgress?.('render');
+  const elements = layoutGallery(charts);
+  return {
+    ok: true,
+    elements,
+    charts: charts.map(({ type, elements: els }) => ({ type, elements: els })),
+    failed,
+    stats: { notes: notes.value.length },
+  };
 }
 
 

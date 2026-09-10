@@ -4,7 +4,7 @@
  * 由 charts/assemble.ts 统一写入画布。
  */
 
-import { resolveShape, swimlaneStyle } from './shapes';
+import { resolveShape, swimlaneStyle, ICON_SHAPE_KEYS } from './shapes';
 import type { ChartTypeId } from './catalog';
 
 export interface ChartElement {
@@ -199,13 +199,16 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
   steps.slice(0, 10).forEach((st, i) => {
     const label = str(st.label, `步骤${i + 1}`);
     const shapeKey = str(st.shape, 'process');
+    // 图标部件自带图形与下方标签,不再叠加填充色,占位小一号
+    const isIcon = ICON_SHAPE_KEYS.has(shapeKey);
     const fill =
+      isIcon ? '' :
       shapeKey === 'terminator' ? FILL_GRAY :
       shapeKey === 'decision' ? FILL_YELLOW :
       shapeKey === 'data' ? FILL_PURPLE :
       shapeKey === 'document' || shapeKey === 'note' ? FILL_GREEN : '';
-    const w = shapeKey === 'decision' ? 180 : 200;
-    const h = shapeKey === 'decision' ? 100 : 60;
+    const w = shapeKey === 'decision' ? 180 : isIcon ? 90 : 200;
+    const h = shapeKey === 'decision' ? 100 : isIcon ? 64 : 60;
     const laneIdxRaw = typeof st.lane === 'number' ? st.lane : 0;
     const laneIdx = lanes.length > 0 ? Math.max(0, Math.min(lanes.length - 1, laneIdxRaw)) : 0;
     laneOrder[laneIdx] = laneOrder[laneIdx] ?? -1;

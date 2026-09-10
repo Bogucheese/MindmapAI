@@ -82,16 +82,18 @@ function insertAfterRegex(file, { marker, regex, block, label }) {
   log(`applied: ${label}`);
 }
 
-/** Append a text block if its marker line is absent. */
-function appendIfMissing(file, { marker, block, label }) {
-  let s = read(file);
-  if (s.includes(marker)) {
+/** i18n 追加:逐行确保存在——即使旧仓库已注入过整块,新增文案行也能补上。 */
+function ensureI18nLines(file, block, label) {
+  const existing = read(file);
+  const missing = block.split('\n').filter((line) => line.trim() !== '' && !existing.includes(line));
+  if (missing.length === 0) {
     log(`skip (already applied): ${label}`);
     return;
   }
+  let s = existing;
   if (!s.endsWith('\n')) s += '\n';
-  write(file, s + block);
-  log(`applied: ${label}`);
+  write(file, s + missing.join('\n') + '\n');
+  log(`applied: ${label} (+${missing.length} lines)`);
 }
 
 function copyFile(src, dest, label) {
@@ -264,16 +266,8 @@ function applyWebapp() {
     to: DEVEL_CSP_TO + '\n',
     label: 'webapp/Devel.js dev CSP entry',
   });
-  appendIfMissing(path.join(app, 'resources', 'dia.txt'), {
-    marker: '# MindmapAI plugin strings',
-    block: read(path.join(PATCHES, 'webapp', 'dia.extra.txt')),
-    label: 'webapp/dia.txt i18n (EN)',
-  });
-  appendIfMissing(path.join(app, 'resources', 'dia_zh.txt'), {
-    marker: '# MindmapAI 插件字符串',
-    block: read(path.join(PATCHES, 'webapp', 'dia_zh.extra.txt')),
-    label: 'webapp/dia_zh.txt i18n (ZH)',
-  });
+  ensureI18nLines(path.join(app, 'resources', 'dia.txt'), read(path.join(PATCHES, 'webapp', 'dia.extra.txt')), 'webapp/dia.txt i18n (EN)');
+  ensureI18nLines(path.join(app, 'resources', 'dia_zh.txt'), read(path.join(PATCHES, 'webapp', 'dia_zh.extra.txt')), 'webapp/dia_zh.txt i18n (ZH)');
   copyFile(path.join(PATCHES, 'webapp', 'test-article.html'), path.join(app, 'test-article.html'), 'webapp/test-article.html fixture');
 
   // brand: original MindmapAI artwork replaces upstream icons (see patches/assets/mindmapai-icon.svg)

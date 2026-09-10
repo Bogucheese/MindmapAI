@@ -9,7 +9,7 @@
 
 import { generateMindmapTree, testConnection } from '../ai/client';
 import { generateMindmapFromSource } from '../agent/pipeline';
-import { generateChart, generateShapeGallery } from '../charts/pipeline';
+import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
 import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
 import { attachChartSlots } from '../mindmap/tree-model';
@@ -302,6 +302,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     [
       { value: 'mindmap', label: t('aiChartTypeMindmap', 'Mind map') },
       ...CHART_TYPE_ORDER.map((id) => ({ value: id as string, label: CHART_TYPES[id].name })),
+      { value: 'gallery', label: t('aiChartTypeGallery', 'All charts (panorama canvas)') },
     ],
     prefs.chartType
   );
@@ -312,6 +313,10 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   const updateChartDesc = (): void => {
     const id = chartSelect.value;
     chartDescRow.style.display = id === 'mindmap' ? 'none' : '';
+    if (id === 'gallery') {
+      mxUtils.write(chartDescRow, t('aiChartGalleryDesc', 'Generate all 12 thinking charts from the same source onto ONE canvas (one AI call per chart; charts that fail are skipped).'));
+      return;
+    }
     if (id !== 'mindmap' && CHART_TYPES[id as ChartTypeId] != null) {
       const m = CHART_TYPES[id as ChartTypeId];
       mxUtils.write(chartDescRow, `${m.definition} ${m.pros}`);
@@ -738,17 +743,32 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           saveGenerationPrefs(genPrefs);
           const settings: AiProviderSettings = loadSettings();
           const chartDirection = genPrefs.chartDirection === 'horizontal' ? 'horizontal' : 'vertical';
-          generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
-            direction: chartDirection,
-            isCancelled: () => cancelled,
-            onProgress: (stage, current, total) => {
-              if (stage === 'distill' && total != null && total > 1) {
-                setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`);
-                return;
-              }
-              setStatus(t(stage === 'architect' ? 'aiChartArchitect' : 'aiStageRender', 'Working...'));
-            },
-          })
+          const isGallery = genPrefs.chartType === 'gallery';
+          const genResult = isGallery
+            ? generateChartGallery(settings, apiKey, { topic, doc }, {
+                isCancelled: () => cancelled,
+                onProgress: (stage, current, total) => {
+                  if (stage === 'distill' && total != null && total > 1) {
+                    setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`);
+                    return;
+                  }
+                  setStatus(stage === 'architect' && total != null
+                    ? `${t('aiGalleryChart', 'Generating charts')} (${current ?? 0}/${total})`
+                    : t('aiStageRender', 'Rendering...'));
+                },
+              })
+            : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
+                direction: chartDirection,
+                isCancelled: () => cancelled,
+                onProgress: (stage, current, total) => {
+                  if (stage === 'distill' && total != null && total > 1) {
+                    setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`);
+                    return;
+                  }
+                  setStatus(t(stage === 'architect' ? 'aiChartArchitect' : 'aiStageRender', 'Working...'));
+                },
+              });
+          genResult
             .then((result) => {
               generateBtn.removeAttribute('disabled');
               if (!result.ok) {
@@ -782,11 +802,22 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                   chartOptions.origin = { x: bounds.x + bounds.width + 160, y: bounds.y };
                 }
                 const built = buildChartElements(ui, result.elements, chartOptions);
-                // 槽位记忆:右键「AI 修改此图」基于它增量修改;随文件持久化
-                (graph as any).__mmChartSlots = { type: genPrefs.chartType, slots: result.slots, direction: chartDirection };
-                attachChartSlots(graph, JSON.stringify({ type: genPrefs.chartType, slots: result.slots, direction: chartDirection }));
-                console.info('[MindmapAI] chart generated:', genPrefs.chartType, built);
-                setStatus(t('aiChartEditHint', 'Right-click blank canvas → Edit this chart with AI'), COLOR_NOTICE);
+                if ('slots' in result) {
+                  // 槽位记忆:右键「AI 修改此图」基于它增量修改;随文件持久化
+                  (graph as any).__mmChartSlots = { type: genPrefs.chartType, slots: result.slots, direction: chartDirection };
+                  attachChartSlots(graph, JSON.stringify({ type: genPrefs.chartType, slots: result.slots, direction: chartDirection }));
+                  console.info('[MindmapAI] chart generated:', genPrefs.chartType, built);
+                  setStatus(t('aiChartEditHint', 'Right-click blank canvas → Edit this chart with AI'), COLOR_NOTICE);
+                } else {
+                  const failedCount = result.failed.length;
+                  console.info('[MindmapAI] gallery generated:', genPrefs.chartType, built, 'failed:', result.failed);
+                  setStatus(
+                    failedCount > 0
+                      ? `${t('aiGalleryDone', 'Panorama canvas ready')} — ${failedCount} ${t('aiGalleryFailed', 'chart(s) failed, see console')}`
+                      : t('aiGalleryDone', 'Panorama canvas ready'),
+                    COLOR_NOTICE
+                  );
+                }
                 ui.hideDialog();
               } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);

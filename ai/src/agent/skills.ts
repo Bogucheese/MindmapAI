@@ -21,7 +21,7 @@ export function buildDistillSystemPrompt(language: OutputLanguage, maxNotes: num
       : LANGUAGE_RULES[language];
   return [
     '[MM-STAGE:distill]',
-    'You are a meticulous research assistant extracting knowledge points from a source text.',
+    'You are a meticulous senior research analyst extracting knowledge points from a source text — precise, skeptical of filler, and terminologically disciplined.',
     'Return strict JSON: {"notes": [{"id": string, "content": string, "quote": string}]}.',
     'Rules:',
     '- Extract as many notes as the content deserves (hard cap ' + maxNotes + ', typically 3-10): never pad to reach a count, never omit a distinct fact; skip filler text (ads, navigation, calls to action).',
@@ -51,7 +51,7 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
     // 无骨架(无标题结构的粘贴文本):退回旧式自由建树
     return [
       '[MM-STAGE:architect]',
-      'You are a mind map design expert.',
+      'You are a senior information designer with 20 years of experience crafting publication-quality mind maps for professional audiences.',
       'Given a topic and extracted knowledge points (each with an id), organize them into a mind map as strict JSON:',
       '{"label": string, "source": {"noteIds": [string]}, "children": [<same shape, optional>]}.',
       'The root object represents the topic itself. Every non-root node MUST carry "source": {"noteIds": [...]}.',
@@ -62,6 +62,7 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
       '- No duplicates: the same fact or concept appears in exactly ONE node; merge repeated content instead of restating it in another branch.',
       '- Weight: top-level branches are the major themes of the topic; meta information (audience, reading advice, background remarks) is nested under a fitting theme or dropped, never a top-level branch.',
       '- Group long lists: when a node would exceed ' + c.maxChildren + ' leaf children, introduce intermediate category nodes instead of one flat list.',
+      '- Completeness: produce a COMPLETE, content-rich map in ONE pass — every branch carries concrete leaf content, no placeholder or to-be-filled nodes. Later node expansion (right-click) is only for drilling deeper, never for basic completeness.',
       '- Do NOT invent knowledge that is absent from the notes.',
       `- ${LANGUAGE_RULES[c.language]}`,
       'Reply with the JSON object ONLY: no markdown fences, no explanations, no comments.',
@@ -69,7 +70,7 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
   }
   return [
     '[MM-STAGE:architect]',
-    'You are a mind map design expert. The mind map STRUCTURE is already fixed by a section skeleton (derived from the source headings). You ONLY decide which LEAF nodes go under each deepest section.',
+    'You are a senior information designer with 20 years of experience crafting publication-quality mind maps. The mind map STRUCTURE is already fixed by a section skeleton (derived from the source headings). You ONLY decide which LEAF nodes go under each deepest section.',
     'Return strict JSON: {"leaves": {"<section path>": [ {"label": string, "source": {"noteIds": [string]}} ]}}.',
     'Rules:',
     '- Keys are section paths COPIED VERBATIM from the skeleton lines (the part before " (n points)"), e.g. "定义 AI 代理 > 什么是 AI 代理？".',
@@ -77,6 +78,7 @@ export function buildArchitectSystemPrompt(c: GenerationConstraints, skeletonTex
     '- Per-section leaf budgets are given in the user prompt — do not exceed them.',
     '- Terminology: use ONE consistent term for the same concept across ALL sections (never both "Agent" and "AI Agent").',
     '- Leaves under one section are same-dimension items; never mix a contrasting item into a component list.',
+    '- Completeness: fill every deepest section with concrete leaves in this single pass — no empty or placeholder sections; expansion later is for depth, not completeness.',
     '- No duplicates: the same concept is placed in exactly ONE section; do not restate it under another.',
     '- Do NOT invent knowledge that is absent from the notes.',
     `- ${LANGUAGE_RULES[c.language]}`,
@@ -118,7 +120,7 @@ export function buildArchitectReviseUserPrompt(topic: string, tree: MindmapTree,
 export function buildCritiqueSystemPrompt(): string {
   return [
     '[MM-STAGE:critique]',
-    'You are a strict reviewer judging whether a mind map faithfully represents a source.',
+    'You are a strict senior editor judging whether a mind map faithfully represents a source — you sign your name on every map you approve.',
     'You receive: the topic, the mind map JSON (nodes may carry source.noteIds), the extracted knowledge points, and possibly a section skeleton derived from the source headings.',
     'Return strict JSON: {"scores": {"grounding": number, "coverage": number, "specificity": number, "structure": number}, "verdict": "pass"|"revise", "feedback": string}.',
     'Scoring 0-100:',
@@ -162,7 +164,7 @@ export function buildCritiqueUserPrompt(
 export function buildExpandSystemPrompt(c: GenerationConstraints, withNotes: boolean): string {
   return [
     '[MM-STAGE:expand]',
-    'You are a mind map design expert. The user is drilling down into ONE node of an existing mind map.',
+    'You are a senior information designer. The user is drilling down into ONE node of an existing mind map.',
     'Return strict JSON: {"label": string, "children": [{"label": string, "source": {"noteIds": [string]}}]}.',
     'The root "label" repeats the node being expanded; "children" are its NEW children (single level, no nested "children").',
     'Rules:',
@@ -200,11 +202,11 @@ export function buildExpandUserPrompt(input: ExpandInput): string {
 export function buildAutotuneSystemPrompt(): string {
   return [
     '[MM-STAGE:autotune]',
-    'You are a mind map design expert. Given the topic, the extracted knowledge points and the section skeleton (from the source\'s own headings), choose the BEST structure parameters.',
+    'You are a senior information designer. Given the topic, the extracted knowledge points and the section skeleton (from the source\'s own headings), choose the BEST structure parameters.',
     'Return strict JSON: {"depth": number, "maxChildren": number, "maxNodes": number, "reason": string}.',
     'Rules:',
-    '- A mind map is an OVERVIEW, not a mirror of the source. maxNodes is the hard total budget: keep it within 15-60 regardless of how many knowledge points exist — related points merge into single leaves later.',
-    '- Scale within the band: broad multi-theme sources (many top-level sections) justify 40-60; a narrow or single-theme source needs 15-25.',
+    '- A mind map is an OVERVIEW, not a mirror of the source. maxNodes is the hard total budget: keep it within 30-90 regardless of how many knowledge points exist — related points merge into single leaves later.',
+    '- Scale within the band: broad multi-theme sources (many top-level sections) justify 60-90; a narrow or single-theme source needs 30-50.',
     '- A map with BARE branches (a section node with no children while its skeleton shows points) is a defect. depth must let the deepest skeleton sections carry leaf children: depth is at least (deepest skeleton depth + 1) unless that exceeds 6.',
     '- maxChildren: 2-8, chosen to group sections and notes evenly.',
     '- reason: one short sentence (same language as the knowledge points) explaining the choice.',
@@ -236,7 +238,7 @@ export function buildChartSystemPrompt(meta: ChartTypeMeta): string {
       : '';
   return [
     '[MM-STAGE:chart]',
-    `You are a diagram design expert. The user wants a "${meta.name}" (a thinking map type).`,
+    `You are a senior professional chart maker (资深专业图表制作者) who produces clean, semantically precise diagrams. The user wants a "${meta.name}" (a thinking map type).`,
     `Definition: ${meta.definition}`,
     `Strengths / when to use: ${meta.pros}`,
     `Return strict JSON with EXACTLY this shape: ${meta.slots}`,
@@ -272,7 +274,7 @@ export function buildShapeGalleryPrompt(): string {
     .join('; ');
   return [
     '[MM-STAGE:shape-gallery]',
-    'You are a diagram design expert. For EACH shape part in the catalog below, invent ONE typical usage example.',
+    'You are a senior professional chart maker. For EACH shape part in the catalog below, invent ONE typical usage example.',
     'Return strict JSON: {"items": [{"shape": "<catalog key>", "label": "<example label, under 12 chars>", "note": "<one-line usage scenario, under 16 chars>"}]}.',
     `Shape catalog: ${catalog}`,
     'Rules: cover EVERY catalog key exactly once; labels must match the part semantics (e.g. decision → "是否通过?"); use Chinese.',

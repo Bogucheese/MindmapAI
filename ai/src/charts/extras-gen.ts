@@ -38,7 +38,7 @@ export function buildExtrasPrompt(notes: DistilledNote[], skeletonText: string):
 export function buildExtrasSystemPrompt(): string {
   return [
     '[MM-STAGE:extras]',
-    'You are a diagram design expert. Alongside a main mind map, propose SUPPLEMENTARY views that add value: mini mind maps for satellite topics, one summary table, and key relationships.',
+    'You are a senior professional chart maker. Alongside a main mind map, propose SUPPLEMENTARY views that add value: mini mind maps for satellite topics, one summary table, and key relationships.',
     'Return strict JSON:',
     '{"minimaps": [{"title": string, "items": [string]}],',
     ' "table": {"title": string, "headers": [string, string, string], "rows": [[string, string, string]]},',
