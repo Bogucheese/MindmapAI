@@ -568,6 +568,41 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   };
   table.appendChild(statusRow);
 
+  // 进度条:生成期间可见——确定进度显示比例,不确定阶段来回扫动
+  const progressRow = document.createElement('div');
+  progressRow.style.cssText = 'display:none;grid-column:1 / span 2;align-items:center;gap:8px;';
+  const progressBarOuter = document.createElement('div');
+  progressBarOuter.style.cssText = 'flex:1 1 auto;height:6px;border-radius:3px;background:#E2E8F0;overflow:hidden;';
+  const progressBarFill = document.createElement('div');
+  progressBarFill.style.cssText = 'height:100%;width:0%;border-radius:3px;background:#6D28D9;transition:width .25s;';
+  progressBarOuter.appendChild(progressBarFill);
+  const progressText = document.createElement('span');
+  progressText.style.cssText = 'flex:0 0 auto;font-size:9pt;color:#475569;white-space:nowrap;';
+  progressRow.appendChild(progressBarOuter);
+  progressRow.appendChild(progressText);
+  table.appendChild(progressRow);
+  if (container.ownerDocument.getElementById('mm-progress-keyframes') == null) {
+    const keyframes = container.ownerDocument.createElement('style');
+    keyframes.id = 'mm-progress-keyframes';
+    keyframes.textContent = '@keyframes mmProgressSweep{from{transform:translateX(-70%)}to{transform:translateX(170%)}}';
+    container.ownerDocument.head.appendChild(keyframes);
+  }
+  const setProgress = (text: string, current?: number, total?: number): void => {
+    progressRow.style.display = 'flex';
+    progressText.textContent = text;
+    if (current != null && total != null && total > 0) {
+      const pct = Math.max(0, Math.min(100, Math.round((current / total) * 100)));
+      progressBarFill.style.width = `${pct}%`;
+      progressBarFill.style.animation = '';
+    } else {
+      progressBarFill.style.width = '40%';
+      progressBarFill.style.animation = 'mmProgressSweep 1.1s ease-in-out infinite alternate';
+    }
+  };
+  const hideProgress = (): void => {
+    progressRow.style.display = 'none';
+  };
+
   const rawRow = makeFullRow('9pt');
   rawRow.style.display = 'none';
   rawRow.style.maxHeight = '110px';
@@ -622,7 +657,9 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       autoConstraints: prefs.autoParams,
       onProgress: (p) => {
         if (p.stage === 'distill' && p.total != null && p.total > 1) {
-          setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${p.current ?? 0}/${p.total})`);
+          const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${p.current ?? 0}/${p.total})`;
+          setStatus(label);
+          setProgress(label, p.current ?? 0, p.total);
           return;
         }
         const key =
@@ -635,11 +672,12 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                 : p.stage === 'critique'
                   ? 'aiStageCritique'
                   : 'aiStageRender';
-        setStatus(t(key, 'Working...'));
+        setProgress(t(key, 'Working...'));
       },
     })
       .then((result) => {
         generateBtn.removeAttribute('disabled');
+          hideProgress();
         if (!result.ok) {
           if (result.kind === 'cancelled') {
             if (container.isConnected) {
@@ -701,6 +739,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       })
       .catch((err: unknown) => {
         generateBtn.removeAttribute('disabled');
+          hideProgress();
         setStatus(String(err), COLOR_ERROR);
       });
   };
@@ -736,6 +775,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
         getApiKey().then((apiKey) => {
           if (apiKey == null) {
             generateBtn.removeAttribute('disabled');
+          hideProgress();
             setStatus(t('aiNoKey', 'No API key configured.'), COLOR_ERROR);
             return;
           }
@@ -749,12 +789,18 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                 isCancelled: () => cancelled,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
-                    setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`);
+                    const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;
+                    setStatus(label);
+                    setProgress(label, current ?? 0, total);
                     return;
                   }
-                  setStatus(stage === 'architect' && total != null
-                    ? `${t('aiGalleryChart', 'Generating charts')} (${current ?? 0}/${total})`
-                    : t('aiStageRender', 'Rendering...'));
+                  if (stage === 'architect' && total != null) {
+                    const label = `${t('aiGalleryChart', 'Generating charts')} (${current ?? 0}/${total})`;
+                    setStatus(label);
+                    setProgress(label, current ?? 0, total);
+                    return;
+                  }
+                  setProgress(t('aiStageRender', 'Rendering...'));
                 },
               })
             : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
@@ -762,15 +808,18 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                 isCancelled: () => cancelled,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
-                    setStatus(`${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`);
+                    const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;
+                    setStatus(label);
+                    setProgress(label, current ?? 0, total);
                     return;
                   }
-                  setStatus(t(stage === 'architect' ? 'aiChartArchitect' : 'aiStageRender', 'Working...'));
+                  setProgress(t(stage === 'architect' ? 'aiChartArchitect' : 'aiStageRender', 'Working...'));
                 },
               });
           genResult
             .then((result) => {
               generateBtn.removeAttribute('disabled');
+          hideProgress();
               if (!result.ok) {
                 if (result.kind === 'cancelled') {
                   if (container.isConnected) setStatus(t('aiCancelled', 'Cancelled.'), COLOR_NOTICE);
@@ -826,6 +875,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             })
             .catch((err: unknown) => {
               generateBtn.removeAttribute('disabled');
+          hideProgress();
               setStatus(String(err), COLOR_ERROR);
             });
         });
@@ -851,24 +901,29 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
         getApiKey().then((apiKey) => {
           if (apiKey == null) {
             generateBtn.removeAttribute('disabled');
+          hideProgress();
             setStatus(t('aiNoKey', 'No API key configured.'), COLOR_ERROR);
             return;
           }
           setStatus(t('aiFetchingPage', 'Fetching page...'));
+          setProgress(t('aiFetchingPage', 'Fetching page...'));
           rawRow.style.display = 'none';
           saveGenerationPrefs(genPrefs);
           buildSourceDocFromUrl(linkUrl, undefined, loadSettings().fetchProxyPrefix)
             .then((fetched) => {
               if (!fetched.ok) {
                 generateBtn.removeAttribute('disabled');
+          hideProgress();
                 showFetchError(fetched.kind, fetched.status, fetched.detail);
                 return;
               }
               setStatus(t('aiStageIngest', 'Preparing source...'));
+        setProgress(t('aiStageIngest', 'Preparing source...'));
               runChart(fetched.doc.title, fetched.doc);
             })
             .catch((err: unknown) => {
               generateBtn.removeAttribute('disabled');
+          hideProgress();
               setStatus(String(err), COLOR_ERROR);
             });
         });
@@ -896,10 +951,12 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       getApiKey().then((apiKey) => {
         if (apiKey == null) {
           generateBtn.removeAttribute('disabled');
+          hideProgress();
           setStatus(t('aiNoKey', 'No API key configured.'), COLOR_ERROR);
           return;
         }
         setStatus(t('aiStageIngest', 'Preparing source...'));
+        setProgress(t('aiStageIngest', 'Preparing source...'));
         rawRow.style.display = 'none';
         saveGenerationPrefs(genPrefs);
         const settings: AiProviderSettings = loadSettings();
@@ -927,6 +984,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       getApiKey().then((apiKey) => {
         if (apiKey == null) {
           generateBtn.removeAttribute('disabled');
+          hideProgress();
           setStatus(t('aiNoKey', 'No API key configured.'), COLOR_ERROR);
           return;
         }
@@ -938,15 +996,18 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           .then((fetched) => {
             if (!fetched.ok) {
               generateBtn.removeAttribute('disabled');
+          hideProgress();
               showFetchError(fetched.kind, fetched.status, fetched.detail);
               return;
             }
             console.info('[MindmapAI] fetched source:', fetched.finalUrl);
             setStatus(t('aiStageIngest', 'Preparing source...'));
+        setProgress(t('aiStageIngest', 'Preparing source...'));
             runSourcePipeline(genPrefs, settings, apiKey, fetched.doc.title, fetched.doc);
           })
           .catch((err: unknown) => {
             generateBtn.removeAttribute('disabled');
+          hideProgress();
             setStatus(String(err), COLOR_ERROR);
           });
       });
