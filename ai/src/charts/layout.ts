@@ -196,6 +196,12 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
   const laneCellCounts: number[] = lanes.length > 0 ? lanes.map(() => 0) : [0];
   const laneOrder: number[] = [];
 
+  const laneRect = (laneIdx: number): { x: number; y: number; w: number; h: number } => {
+    const origin = laneOrigin(laneIdx);
+    return horizontal
+      ? { x: origin.x - 20, y: origin.y + 30, w: 260, h: 240 }
+      : { x: origin.x - 20, y: origin.y - 30, w: 260, h: 300 };
+  };
   steps.slice(0, 10).forEach((st, i) => {
     const label = str(st.label, `步骤${i + 1}`);
     const shapeKey = str(st.shape, 'process');
@@ -215,9 +221,11 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
     laneCellCounts[laneIdx] = (laneCellCounts[laneIdx] ?? 0) + 1;
     const seq = laneCellCounts[laneIdx] - 1;
     const origin = laneOrigin(laneIdx);
-    const step = seq * 130;
-    const x = horizontal ? origin.x + step : origin.x + 70;
-    const y = horizontal ? origin.y + 90 : origin.y + step;
+    const step = horizontal ? seq * 250 : seq * 140;
+    const rect = laneRect(laneIdx);
+    // 节点在泳道内居中,不越出容器边界
+    const x = horizontal ? origin.x + step : rect.x + (rect.w - w) / 2;
+    const y = horizontal ? rect.y + (rect.h - h) / 2 : origin.y + step;
     els.push(V(label, resolveShape(shapeKey, 'process') + fill, x, y, w, h));
     byIndex.push(els.length - 1);
   });
@@ -226,7 +234,9 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
   if (lanes.length > 0) {
     lanes.forEach((name, li) => {
       const count = laneCellCounts[li] ?? 1;
-      const spanLen = Math.max(count * 130 + 60, 260);
+      const spanLen = horizontal
+        ? Math.max(count * 250 + 60, 260)
+        : Math.max(count * 140 + 80, 260);
       const origin = laneOrigin(li);
       const style = swimlaneStyle();
       const el: ChartElement = horizontal
@@ -238,10 +248,24 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
     });
   }
 
+  const laneOf = (i: number): number => {
+    const raw = steps[i]?.lane;
+    return typeof raw === 'number' ? Math.max(0, Math.min(lanes.length - 1, raw)) : 0;
+  };
   for (let i = 0; i < byIndex.length - 1; i++) {
     const arrow = str(steps[i + 1]?.arrow, '');
     const dashed = steps[i + 1]?.dashed === true;
-    const style = 'edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' + (dashed ? 'dashed=1;dashPattern=6 4;' : '');
+    const crossLane = lanes.length > 0 && laneOf(i) !== laneOf(i + 1);
+    // 定向连接点:顺序连线沿流向出/入,不穿过节点;跨泳道从侧面走并虚线区分
+    const flow = horizontal
+      ? 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;'
+      : 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
+    const side = horizontal
+      ? 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;'
+      : 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
+    const style = 'edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' +
+      (crossLane ? side : flow) +
+      (dashed || crossLane ? 'dashed=1;dashPattern=6 4;' : '');
     els.push(E(byIndex[i], byIndex[i + 1], arrow, style));
   }
   return els;
@@ -264,8 +288,14 @@ function layoutMultiFlow(slots: ChartSlots): ChartElement[] {
   };
   const causeIdx = col(causes, 100, FILL_BLUE);
   const effectIdx = col(effects, 820, FILL_ORANGE);
-  causeIdx.forEach((i) => els.push(E(i, eventIdx, '因为')));
-  effectIdx.forEach((i) => els.push(E(eventIdx, i, '导致')));
+  causeIdx.forEach((i, k) => {
+    const t = (k + 1) / (causeIdx.length + 1);
+    els.push(E(i, eventIdx, '因为', `exitX=1;exitY=0.5;entryX=0;entryY=${t.toFixed(2)};edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;`));
+  });
+  effectIdx.forEach((i, k) => {
+    const t = (k + 1) / (effectIdx.length + 1);
+    els.push(E(eventIdx, i, '导致', `exitX=1;exitY=${t.toFixed(2)};entryX=0;entryY=0.5;edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#D97706;`));
+  });
   return els;
 }
 

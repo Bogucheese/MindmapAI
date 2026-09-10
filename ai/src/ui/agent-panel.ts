@@ -71,7 +71,7 @@ function buildPanelDom(ui: DrawioPluginApi, width: number): PanelDom {
 
   const root = el('div', [
     'position:absolute;right:0;top:0;bottom:0;',
-    `width:${width}px;z-index:2;`,
+    `width:${width}px;z-index:100000;`,
     'display:flex;flex-direction:column;background:#FFFFFF;',
     'border-left:1px solid #DADCE0;overflow:hidden;',
   ].join(''));
