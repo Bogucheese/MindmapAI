@@ -11,7 +11,6 @@
  *   node scripts/setup-upstream.mjs [options]
  *
  * Options:
- *   --skip-clone        不执行 git clone（目录已就位时用）
  *   --skip-build        跳过 ai/ 插件构建
  *   --webapp-dir <dir>  覆盖 webapp 目录（默认 ./webapp）
  *   --desktop-dir <dir> 覆盖 desktop 目录（默认 ./desktop）
@@ -34,7 +33,6 @@ const flag = (name) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 ? argv[i + 1] : undefined;
 };
-const SKIP_CLONE = argv.includes('--skip-clone');
 const SKIP_BUILD = argv.includes('--skip-build');
 const WEBAPP_DIR = path.resolve(REPO_ROOT, flag('webapp-dir') ?? 'webapp');
 const DESKTOP_DIR = path.resolve(REPO_ROOT, flag('desktop-dir') ?? 'desktop');
@@ -164,16 +162,20 @@ const disableUpdatePayload = read(path.join(PATCHES, 'desktop', 'disableUpdate.j
 
 // ---------- upstream fetching ----------
 
-function ensureUpstream(dir, cfg, repoOverride, label) {
+function ensureUpstream(dir, cfg, repoOverride, label, layoutProbe) {
   if (fs.existsSync(path.join(dir, '.git'))) {
     log(`${label}: git repo already present at ${dir} — clone skipped (idempotent inject will verify markers)`);
     return;
   }
-  if (fs.existsSync(dir) && SKIP_CLONE) {
-    log(`${label}: ${dir} present (not a git repo) — clone skipped`);
-    return;
+  if (fs.existsSync(dir)) {
+    if (fs.existsSync(path.join(dir, layoutProbe))) {
+      log(`${label}: ${dir} present (not a git repo) — clone skipped`);
+      return;
+    }
+    // 半截拉取的残留（无 .git 也无完整布局）：清掉重拉
+    log(`${label}: incomplete ${dir} without .git — removing and re-fetching`);
+    fs.rmSync(dir, { recursive: true, force: true });
   }
-  if (fs.existsSync(dir)) die(`${label}: ${dir} 已存在且不完整 — 删除后重试`);
   const repo = repoOverride ?? cfg.repo;
   log(`${label}: fetching ${repo} (pinned: ${cfg.commit}) — this downloads upstream source`);
   // 优先浅获取固定提交（运行应用不需要上游历史，下载量小得多）；失败再回退全量克隆
@@ -290,17 +292,71 @@ function applyWebapp() {
     to: '<title>MindmapAI</title>',
     label: 'webapp/index.html static title',
   });
-  replaceOnce(path.join(app, 'js', 'diagramly', 'Pages.js'), {
-    marker: "ghLink.style.display = 'none';",
-    from: "\t\t\t'padding:0 8px;opacity:0.5;flex-shrink:0';\n",
-    to: "\t\t\t'padding:0 8px;opacity:0.5;flex-shrink:0';\n\t\tghLink.style.display = 'none';\n",
-    label: 'webapp/Pages.js hide upstream github badge (dev source)',
+  // 底部标签栏右侧徽标：上游 ghLink（GitHub logo → jgraph/drawio，保持可见）
+  // 之后再注入 MindmapAI 仓库徽标（自绘 SVG data-URI，原创图形）。旧版注入
+  // 曾隐藏 ghLink，此处先做幂等迁移清理。
+  const pagesJs = path.join(app, 'js', 'diagramly', 'Pages.js');
+  const legacyPages = "\n\t\tghLink.style.display = 'none';";
+  if (read(pagesJs).includes(legacyPages)) {
+    write(pagesJs, read(pagesJs).split(legacyPages).join(''));
+    log('migrated: removed legacy ghLink hide (Pages.js)');
+  }
+  const appMinPath = path.join(app, 'js', 'app.min.js');
+  const legacyMin = 'opacity:0.5;flex-shrink:0";l.style.display="none";';
+  if (read(appMinPath).includes(legacyMin)) {
+    write(appMinPath, read(appMinPath).split(legacyMin).join('opacity:0.5;flex-shrink:0";'));
+    log('migrated: removed legacy ghLink hide (app.min.js)');
+  }
+  const badgeSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#2563EB"/></linearGradient></defs>' +
+    '<circle cx="12" cy="12" r="10" fill="url(#g)"/>' +
+    '<g stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none">' +
+    '<path d="M12 12L7 7.5"/><path d="M12 12l6.5-1.5"/><path d="M12 12l-2.5 6.5"/><path d="M12 12l5 4"/></g>' +
+    '<circle cx="12" cy="12" r="2.4" fill="#FBBF24"/>' +
+    '<circle cx="7" cy="7.5" r="1.7" fill="#fff"/>' +
+    '<circle cx="18.5" cy="10.5" r="1.7" fill="#fff"/>' +
+    '<circle cx="9.5" cy="18.5" r="1.7" fill="#fff"/>' +
+    '<circle cx="17" cy="16" r="1.7" fill="#fff"/></svg>';
+  const badgeUri = 'data:image/svg+xml,' + encodeURIComponent(badgeSvg);
+  replaceOnce(pagesJs, {
+    marker: "var mmLink = document.createElement('a');",
+    from: '\t\tthis.tabContainer.appendChild(ghLink);\n',
+    to: `\t\tthis.tabContainer.appendChild(ghLink);\n` +
+      `\t\tvar mmLink = document.createElement('a');\n` +
+      `\t\tmmLink.href = 'https://github.com/Bogucheese/MindmapAI';\n` +
+      `\t\tmmLink.target = '_blank';\n` +
+      `\t\tmmLink.style.cssText = 'display:flex;align-items:center;' +\n` +
+      `\t\t\t'padding:0 8px;opacity:0.5;flex-shrink:0';\n` +
+      `\t\tvar mmBadge = document.createElement('img');\n` +
+      `\t\tmmBadge.src = '${badgeUri}';\n` +
+      `\t\tmmBadge.style.cssText = 'width:18px;height:18px';\n` +
+      `\t\tmmBadge.setAttribute('title', 'Bogucheese/MindmapAI');\n` +
+      `\t\tmmLink.appendChild(mmBadge);\n` +
+      `\t\tmxEvent.addListener(mmLink, 'mouseenter', function()\n` +
+      `\t\t{\n` +
+      `\t\t\tmmLink.style.opacity = '1';\n` +
+      `\t\t});\n` +
+      `\t\tmxEvent.addListener(mmLink, 'mouseleave', function()\n` +
+      `\t\t{\n` +
+      `\t\t\tmmLink.style.opacity = '0.5';\n` +
+      `\t\t});\n` +
+      `\t\tthis.tabContainer.appendChild(mmLink);\n`,
+    label: 'webapp/Pages.js MindmapAI badge link (dev source)',
   });
-  replaceOnce(path.join(app, 'js', 'app.min.js'), {
-    marker: 'opacity:0.5;flex-shrink:0";l.style.display="none";',
-    from: 'opacity:0.5;flex-shrink:0";',
-    to: 'opacity:0.5;flex-shrink:0";l.style.display="none";',
-    label: 'webapp/app.min.js hide upstream github badge (prod)',
+  replaceOnce(appMinPath, {
+    marker: 'mmLinkEl',
+    from: 'this.tabContainer.appendChild(l);null!=q&&q.classList.add("geActivePage")',
+    to: 'this.tabContainer.appendChild(l);var mmLinkEl=document.createElement("a");' +
+      'mmLinkEl.href="https://github.com/Bogucheese/MindmapAI";mmLinkEl.target="_blank";' +
+      'mmLinkEl.style.cssText="display:flex;align-items:center;padding:0 8px;opacity:0.5;flex-shrink:0";' +
+      'var mmBadgeEl=document.createElement("img");mmBadgeEl.src="' + badgeUri + '";' +
+      'mmBadgeEl.style.cssText="width:18px;height:18px";mmBadgeEl.setAttribute("title","Bogucheese/MindmapAI");' +
+      'mmLinkEl.appendChild(mmBadgeEl);' +
+      'mxEvent.addListener(mmLinkEl,"mouseenter",function(){mmLinkEl.style.opacity="1"});' +
+      'mxEvent.addListener(mmLinkEl,"mouseleave",function(){mmLinkEl.style.opacity="0.5"});' +
+      'this.tabContainer.appendChild(mmLinkEl);null!=q&&q.classList.add("geActivePage")',
+    label: 'webapp/app.min.js MindmapAI badge link (prod)',
   });
 }
 
@@ -383,8 +439,8 @@ function buildPlugin() {
 
 function main() {
   log(`pins: webapp ${pins.webapp.upstreamVersion} @ ${pins.webapp.commit.slice(0, 9)}, desktop ${pins.desktop.ref} @ ${pins.desktop.commit.slice(0, 9)}`);
-  ensureUpstream(WEBAPP_DIR, pins.webapp, flag('repo-webapp'), 'webapp');
-  ensureUpstream(DESKTOP_DIR, pins.desktop, flag('repo-desktop'), 'desktop');
+  ensureUpstream(WEBAPP_DIR, pins.webapp, flag('repo-webapp'), 'webapp', path.join('src', 'main', 'webapp', 'index.html'));
+  ensureUpstream(DESKTOP_DIR, pins.desktop, flag('repo-desktop'), 'desktop', path.join('src', 'main', 'electron.js'));
   applyWebapp();
   applyDesktop();
   buildPlugin();

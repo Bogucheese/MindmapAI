@@ -31,8 +31,10 @@ AI 思维导图桌面应用。
   脚本标签加 `?v=` 缓存版本号。
 - `src/main/webapp/js/diagramly/Devel.js` — dev 模式 CSP `connect-src` 白名单
   追加一条（允许访问用户配置的 LLM 端点）。
-- `src/main/webapp/js/diagramly/Pages.js`、`js/app.min.js` — 修改：隐藏底部
-  标签栏的上游 GitHub 徽标（`ghLink` 加 `display:none`，源码与压缩产物各一处）。
+- `src/main/webapp/js/diagramly/Pages.js`、`js/app.min.js` — 修改：底部标签栏
+  右侧注入 MindmapAI 仓库徽标（自绘 SVG 图标，链接到本项目 GitHub 仓库），
+  上游 ghLink（GitHub logo，链接到 jgraph/drawio 官方仓库）保持可见；
+  源码与压缩产物各一处。
 - `src/main/webapp/resources/dia.txt`、`dia_zh.txt` — 追加本插件的
   中英文资源 key（内容源文件在 `patches/webapp/`）。
 - `src/main/webapp/test-article.html` — **新增**（链接抓取模式的端到端测试
