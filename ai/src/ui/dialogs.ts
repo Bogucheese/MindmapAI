@@ -9,6 +9,8 @@
 
 import { generateMindmapTree, testConnection } from '../ai/client';
 import { generateMindmapFromSource } from '../agent/pipeline';
+import { runAgentGeneration } from '../agent/agent-loop';
+
 import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
 import { ensureAgentPanel } from './agent-panel';
 import { revealCellsProgressively } from './reveal';
@@ -336,6 +338,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     nodesInput.style.display = display;
     layoutLabel.style.display = display;
     layoutSelect.style.display = display;
+    agentRow.style.display = isChart ? 'none' : '';
     autoRow.style.display = isChart ? 'none' : '';
     const dirVisible = isChart && DIRECTION_TYPES.indexOf(chartSelect.value) >= 0;
     directionLabel.style.display = dirVisible ? '' : 'none';
@@ -507,6 +510,22 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   // 全部行就绪后再做初始可见性(各 update 函数互相引用后面定义的行,避免 TDZ)
   updateSourceMode();
 
+  // Agent 模式:模型用工具自主装配导图(仅思维导图;更慢,实验性)
+  const agentRow = document.createElement('div');
+  agentRow.style.gridColumn = '1 / span 2';
+  agentRow.style.display = 'inline-flex';
+  agentRow.style.alignItems = 'center';
+  agentRow.style.gap = '6px';
+  const agentInput = document.createElement('input');
+  agentInput.setAttribute('type', 'checkbox');
+  agentInput.checked = prefs.agentMode;
+  const agentLabel = document.createElement('span');
+  agentLabel.style.fontSize = '10pt';
+  mxUtils.write(agentLabel, t('aiAgentMode', 'Agent mode: the model assembles the map itself with tools (mind map only, slower)'));
+  agentRow.appendChild(agentInput);
+  agentRow.appendChild(agentLabel);
+  table.appendChild(agentRow);
+
   // 替换选项（画布为空时无意义，但保持一致显示）
   // 详细模式:全部要点逐条成叶 + 引文成为画布上的引用节点
   const detailRow = document.createElement('div');
@@ -635,6 +654,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       chartDirection: directionSelect.value === 'horizontal' ? 'horizontal' : 'vertical',
       detailMode: detailInput.checked,
       autoParams: autoInput.checked,
+      agentMode: agentInput.checked,
       depth,
       maxChildren,
       maxNodes,
@@ -657,6 +677,53 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     const agentPanel = ensureAgentPanel(ui);
     agentPanel.clear();
     agentPanel.show();
+    if (prefs.agentMode === true) {
+      // Agent 模式:模型用工具自主装配(提炼由代码先行,装配决策在模型)
+      runAgentGeneration(settings, apiKey, { topic, doc }, {
+        depth: prefs.depth,
+        maxChildren: prefs.maxChildren,
+        maxNodes: prefs.maxNodes,
+        language: prefs.language,
+        isCancelled: () => cancelled,
+        onEvent: (e: AgentEvent) => agentPanel.append(e),
+      })
+        .then((agent) => {
+          generateBtn.removeAttribute('disabled');
+          hideProgress();
+          if (!agent.ok) {
+            if (agent.kind === 'cancelled') {
+              if (container.isConnected) setStatus(t('aiCancelled', 'Cancelled.'), COLOR_NOTICE);
+              return;
+            }
+            setStatus(`${t('aiAgentFailed', 'Agent run failed')}: ${agent.detail}`, COLOR_ERROR);
+            return;
+          }
+          try {
+            const graph = ui.editor.graph;
+            const hasContent = graph.getChildCells(graph.getDefaultParent()).length > 0;
+            const options: BuildMindmapOptions = { notes: agent.notes, layout: prefs.layout };
+            if (prefs.replace) options.replaceExisting = true;
+            else if (hasContent) {
+              const bounds = graph.getGraphBounds();
+              options.origin = { x: bounds.x + bounds.width + 160, y: bounds.y };
+            }
+            const builtMap = buildMindmapFromTree(ui, agent.tree, options);
+            revealCellsProgressively(graph, builtMap.placedCells, 4500);
+            console.info('[MindmapAI] agent generated:', agent.stats, agent.summary);
+            setStatus(`${t('aiAgentDoneStatus', 'Agent finished')}: ${agent.summary}`, COLOR_NOTICE);
+            ui.hideDialog();
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            setStatus(`${t('aiGenBuildFail', 'Failed to draw the mind map')}: ${message}`, COLOR_ERROR);
+          }
+        })
+        .catch((err: unknown) => {
+          generateBtn.removeAttribute('disabled');
+          hideProgress();
+          setStatus(String(err), COLOR_ERROR);
+        });
+      return;
+    }
     generateMindmapFromSource(settings, apiKey, { topic, doc }, prefs, {
       isCancelled: () => cancelled,
       detailMode: prefs.detailMode,

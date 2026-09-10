@@ -30,6 +30,10 @@ export type AgentEvent =
   | { type: 'revise'; feedback: string }
   /** 单张图表完成(全景/单图共用) */
   | { type: 'chart'; name: string; index?: number; total?: number; nodes: number }
+  /** Agent 模式:一次工具调用(name+结果摘要) */
+  | { type: 'tool'; name: string; detail: string }
+  /** Agent 模式:一个节点被放置/更新 */
+  | { type: 'node'; id: string; label: string; depth: number; total: number; updated?: boolean }
   /** 复合画布 extras 完成摘要 */
   | { type: 'extras'; minimaps: Array<{ title: string; items: number }>; tableRows: number; relations: number }
   /** 一行补充信息(去重统计、跳过的图等) */

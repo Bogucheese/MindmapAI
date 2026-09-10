@@ -142,6 +142,13 @@ function renderEvent(event: AgentEvent): HTMLElement {
       return renderCritique(event);
     case 'revise':
       return renderRevise(event);
+    case 'tool':
+      return renderLine(`⚙ ${event.name} ${event.detail}`, '#475569', '#F1F5F9');
+    case 'node':
+      return renderLine(
+        `${event.updated === true ? '↻' : '＋'} ${event.label} (${event.total} ${t('aiAgentNodesWord', 'nodes')})`,
+        '#166534', '#F0FDF4',
+      );
     case 'chart':
       return renderChart(event);
     case 'extras':

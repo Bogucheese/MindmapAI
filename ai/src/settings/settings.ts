@@ -80,6 +80,8 @@ export interface GenerationPrefs {
   sourceMode: 'topic' | 'paste' | 'link';
   /** 来源模式：AI 按要点推荐 depth/maxChildren/maxNodes（手动值兜底） */
   autoParams: boolean;
+  /** Agent 模式：模型用工具自主装配导图（仅思维导图；更慢，实验性） */
+  agentMode: boolean;
   depth: number;
   maxChildren: number;
   maxNodes: number;
@@ -94,6 +96,7 @@ export const DEFAULT_GENERATION_PREFS: GenerationPrefs = {
   chartDirection: 'vertical',
   detailMode: true,
   autoParams: false,
+  agentMode: false,
   depth: 3,
   maxChildren: 5,
   maxNodes: 60,
@@ -137,6 +140,7 @@ export function loadGenerationPrefs(): GenerationPrefs {
       chartDirection: p.chartDirection === 'horizontal' ? 'horizontal' : 'vertical',
       detailMode: typeof p.detailMode === 'boolean' ? p.detailMode : true,
       autoParams: typeof p.autoParams === 'boolean' ? p.autoParams : DEFAULT_GENERATION_PREFS.autoParams,
+      agentMode: typeof p.agentMode === 'boolean' ? p.agentMode : DEFAULT_GENERATION_PREFS.agentMode,
       depth: clampInt(p.depth, 1, 6, DEFAULT_GENERATION_PREFS.depth),
       maxChildren: clampInt(p.maxChildren, 1, 10, DEFAULT_GENERATION_PREFS.maxChildren),
       maxNodes: clampInt(p.maxNodes, 5, 200, DEFAULT_GENERATION_PREFS.maxNodes),

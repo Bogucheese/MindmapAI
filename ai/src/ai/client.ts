@@ -210,6 +210,92 @@ export interface ChatJsonOptions {
   temperature?: number;
 }
 
+/* ==================== Agent 模式:OpenAI 兼容 tool calling ==================== */
+
+export interface ToolSpec {
+  type: 'function';
+  function: { name: string; description: string; parameters: Record<string, unknown> };
+}
+
+export interface ToolCallRequest {
+  id: string;
+  name: string;
+  /** 原始 JSON 字符串(解析失败由执行方兜底) */
+  arguments: string;
+}
+
+/** Agent 循环的消息:普通消息之外还有带 tool_calls 的 assistant 与 tool 结果 */
+export type ToolLoopMessage =
+  | ChatMessage
+  | { role: 'assistant'; content: string | null; tool_calls?: unknown[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+export type ChatToolsResult =
+  | { ok: true; content: string; toolCalls: ToolCallRequest[]; model: string }
+  | { ok: false; kind: ChatFailureKind; status?: number; detail: string };
+
+export async function chatWithTools(
+  settings: AiProviderSettings,
+  apiKey: string,
+  messages: ToolLoopMessage[],
+  tools: ToolSpec[],
+  opts: ChatJsonOptions
+): Promise<ChatToolsResult> {
+  const body: Record<string, unknown> = {
+    model: settings.model,
+    messages,
+    temperature: opts.temperature ?? settings.temperature,
+    max_tokens: opts.maxTokens,
+    stream: false,
+    tools,
+    tool_choice: 'auto',
+  };
+  const transport = await transportRequest({
+    url: chatCompletionsUrl(settings.baseUrl),
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    timeoutMs: opts.timeoutMs,
+  });
+  if (!transport.ok) {
+    return { ok: false, kind: transport.kind, detail: transport.detail };
+  }
+  if (transport.status >= 400) {
+    return { ok: false, kind: 'http', status: transport.status, detail: transport.body.slice(0, 300) };
+  }
+  let data: {
+    model?: unknown;
+    choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
+  } | null = null;
+  try {
+    data = JSON.parse(transport.body) as {
+      model?: unknown;
+      choices?: Array<{ message?: { content?: unknown; tool_calls?: unknown } }>;
+    } | null;
+  } catch {
+    return { ok: false, kind: 'http', status: transport.status, detail: 'Malformed response: body is not JSON' };
+  }
+  const message = data?.choices?.[0]?.message;
+  const rawCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
+  const toolCalls: ToolCallRequest[] = [];
+  for (const raw of rawCalls) {
+    const call = raw as { id?: unknown; function?: { name?: unknown; arguments?: unknown } };
+    const name = typeof call.function?.name === 'string' ? call.function.name : '';
+    if (call.id == null || name === '') continue;
+    toolCalls.push({
+      id: String(call.id),
+      name,
+      arguments: typeof call.function?.arguments === 'string' ? call.function.arguments : '{}',
+    });
+  }
+  const content = typeof message?.content === 'string' ? message.content : '';
+  const model = typeof data?.model === 'string' ? data.model : settings.model;
+  return { ok: true, content, toolCalls, model };
+}
+
 export async function chatWithJsonFallback(
   settings: AiProviderSettings,
   apiKey: string,
