@@ -6,6 +6,7 @@
 import { showGenerateDialog, showSettingsDialog, showShapeGalleryDialog } from './dialogs';
 import { showChartEditDialog } from './chart-edit';
 import { ensureAgentPanel } from './agent-panel';
+import { revealCellsProgressively } from './reveal';
 import { buildMindmapFromTree } from '../mindmap/tree-model';
 import { DEMO_TREE } from '../mindmap/fixture';
 
@@ -38,6 +39,7 @@ export function registerActions(ui: DrawioPluginApi): void {
   // AI → 示例导图：固定 fixture 演示（M5 建树/布局/配色的验收载体）
   ui.actions.addAction('aiDemo', function () {
     const result = buildMindmapFromTree(ui, DEMO_TREE, { layout: 'radial', replaceExisting: true });
+    revealCellsProgressively(ui.editor.graph, result.placedCells, 4500);
     console.info('[MindmapAI] demo mind map built:', result);
   });
 }

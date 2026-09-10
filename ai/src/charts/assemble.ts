@@ -12,6 +12,8 @@ export interface BuildChartOptions {
 export interface BuildChartResult {
   vertexCount: number;
   edgeCount: number;
+  /** 按放置顺序排列的单元格(顶点在前、边在后)——供逐个放置动画使用 */
+  placedCells: unknown[];
 }
 
 export function buildChartElements(
@@ -24,6 +26,7 @@ export function buildChartElements(
   const parent = graph.getDefaultParent();
   let vertexCount = 0;
   let edgeCount = 0;
+  const placedCells: unknown[] = [];
 
   model.beginUpdate();
   try {
@@ -42,6 +45,7 @@ export function buildChartElements(
           el.style
         );
         cellIds.push(cell);
+        placedCells.push(cell);
         vertexCount++;
       } else {
         cellIds.push(null); // 边占位,第二遍连
@@ -53,14 +57,14 @@ export function buildChartElements(
       const fromCell = el.from != null ? cellIds[el.from] : null;
       const toCell = el.to != null ? cellIds[el.to] : null;
       if (fromCell == null || toCell == null) return;
-      graph.insertEdge(parent, null, el.label ?? '', fromCell, toCell, el.style);
+      placedCells.push(graph.insertEdge(parent, null, el.label ?? '', fromCell, toCell, el.style));
       edgeCount++;
     });
   } finally {
     model.endUpdate();
   }
   graph.fit();
-  return { vertexCount, edgeCount };
+  return { vertexCount, edgeCount, placedCells };
 }
 
 /** 复用 tree-model 的 marker 识别(避免循环依赖,内联一份) */

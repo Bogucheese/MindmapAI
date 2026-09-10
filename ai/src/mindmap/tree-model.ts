@@ -46,6 +46,8 @@ export interface BuildMindmapResult {
   rootCell: unknown;
   vertexCount: number;
   edgeCount: number;
+  /** 按放置顺序排列的单元格(顶点+边交错,DFS 序)——供逐个放置动画使用 */
+  placedCells: unknown[];
 }
 
 /** 收集此前由本插件生成的顶点与边（按样式 marker 识别） */
@@ -168,6 +170,7 @@ export function buildMindmapFromTree(
   let vertexCount = 0;
   let edgeCount = 0;
   let rootCell: unknown = null;
+  const placedCells: unknown[] = [];
 
   // 节点 → 引文（来源模式；noteIds 匹配不到的节点不出现在 tooltip 逻辑里）
   const noteMap = new Map<string, DistilledNote>();
@@ -205,6 +208,7 @@ export function buildMindmapFromTree(
       originX, originY, rootSize.width, rootSize.height, rootVertexStyle()
     );
     vertexCount++;
+    placedCells.push(rootCell);
 
     const edgeStyleFor =
       options.layout === 'tree'
@@ -222,8 +226,10 @@ export function buildMindmapFromTree(
         0, 0, size.width, size.height, style
       );
       vertexCount++;
-      graph.insertEdge(parent, null, '', parentCell, cell, edgeStyleFor(stroke));
+      placedCells.push(cell);
+      const edge = graph.insertEdge(parent, null, '', parentCell, cell, edgeStyleFor(stroke));
       edgeCount++;
+      placedCells.push(edge);
 
       for (const child of node.children ?? []) {
         // 一级分支各自取新色（顶层循环传入 i），后代沿用所在分支的色号
@@ -244,7 +250,7 @@ export function buildMindmapFromTree(
   graph.fit();
   graph.setSelectionCell(rootCell);
   installQuoteTooltips(graph);
-  return { rootCell, vertexCount, edgeCount };
+  return { rootCell, vertexCount, edgeCount, placedCells };
 }
 
 /* ==================== 节点扩展（懒展开） ==================== */

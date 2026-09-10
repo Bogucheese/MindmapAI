@@ -11,6 +11,7 @@ import { generateMindmapTree, testConnection } from '../ai/client';
 import { generateMindmapFromSource } from '../agent/pipeline';
 import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
 import { ensureAgentPanel } from './agent-panel';
+import { revealCellsProgressively } from './reveal';
 import type { AgentEvent } from '../agent/events';
 import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
@@ -725,13 +726,16 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             const bounds = graph.getGraphBounds();
             options.origin = { x: bounds.x + bounds.width + 160, y: bounds.y };
           }
-          buildMindmapFromTree(ui, result.tree, options);
+          const builtMap = buildMindmapFromTree(ui, result.tree, options);
+          // 逐个放置动画:DFS 序渐显(纯视觉,不进撤销栈);extras 在主图放完后接续
+          revealCellsProgressively(graph, builtMap.placedCells, 4500);
           // 复合画布:extras(支线小图/表格/关系图)排到主图右侧
           if (result.extras != null && result.extras.length > 0) {
             const boundsAfter = graph.getGraphBounds();
-            buildChartElements(ui, result.extras, {
+            const builtExtras = buildChartElements(ui, result.extras, {
               origin: { x: boundsAfter.x + boundsAfter.width + 220, y: boundsAfter.y },
             });
+            revealCellsProgressively(graph, builtExtras.placedCells, 3000, 4800);
             console.info('[MindmapAI] extras drawn:', result.extras.length);
           } else {
             console.info('[MindmapAI] no extras in result');
@@ -863,6 +867,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
                   chartOptions.origin = { x: bounds.x + bounds.width + 160, y: bounds.y };
                 }
                 const built = buildChartElements(ui, result.elements, chartOptions);
+                revealCellsProgressively(graph, built.placedCells, 4500);
                 if ('slots' in result) {
                   // 槽位记忆:右键「AI 修改此图」基于它增量修改;随文件持久化
                   (graph as any).__mmChartSlots = { type: genPrefs.chartType, slots: result.slots, direction: chartDirection };
@@ -1078,7 +1083,8 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             options.origin = { x: bounds.x + bounds.width + 160, y: bounds.y };
           }
           try {
-            buildMindmapFromTree(ui, result.tree, options);
+            const builtMap = buildMindmapFromTree(ui, result.tree, options);
+            revealCellsProgressively(graph, builtMap.placedCells, 4500);
             console.info('[MindmapAI] generated:', result.stats);
             ui.hideDialog();
           } catch (err) {
