@@ -303,6 +303,22 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   container.appendChild(table);
 
   // 图表类型:思维导图(现有) + 12 种思考图
+  // Agent 模式:模型用工具自主装配导图(仅思维导图;更慢,实验性)
+  const agentRow = document.createElement('div');
+  agentRow.style.gridColumn = '1 / span 2';
+  agentRow.style.display = 'inline-flex';
+  agentRow.style.alignItems = 'center';
+  agentRow.style.gap = '6px';
+  const agentInput = document.createElement('input');
+  agentInput.setAttribute('type', 'checkbox');
+  agentInput.checked = prefs.agentMode;
+  const agentLabel = document.createElement('span');
+  agentLabel.style.fontSize = '10pt';
+  mxUtils.write(agentLabel, t('aiAgentMode', 'Agent mode: the model assembles the map itself with tools (mind map only, slower)'));
+  agentRow.appendChild(agentInput);
+  agentRow.appendChild(agentLabel);
+  table.appendChild(agentRow);
+
   const chartSelect = makeSelect(
     [
       { value: 'mindmap', label: t('aiChartTypeMindmap', 'Mind map') },
@@ -509,22 +525,6 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   const DIRECTION_TYPES = ['tree', 'org', 'flow'];
   // 全部行就绪后再做初始可见性(各 update 函数互相引用后面定义的行,避免 TDZ)
   updateSourceMode();
-
-  // Agent 模式:模型用工具自主装配导图(仅思维导图;更慢,实验性)
-  const agentRow = document.createElement('div');
-  agentRow.style.gridColumn = '1 / span 2';
-  agentRow.style.display = 'inline-flex';
-  agentRow.style.alignItems = 'center';
-  agentRow.style.gap = '6px';
-  const agentInput = document.createElement('input');
-  agentInput.setAttribute('type', 'checkbox');
-  agentInput.checked = prefs.agentMode;
-  const agentLabel = document.createElement('span');
-  agentLabel.style.fontSize = '10pt';
-  mxUtils.write(agentLabel, t('aiAgentMode', 'Agent mode: the model assembles the map itself with tools (mind map only, slower)'));
-  agentRow.appendChild(agentInput);
-  agentRow.appendChild(agentLabel);
-  table.appendChild(agentRow);
 
   // 替换选项（画布为空时无意义，但保持一致显示）
   // 详细模式:全部要点逐条成叶 + 引文成为画布上的引用节点
