@@ -37,7 +37,7 @@ export const EN_STRINGS: Record<string, string> = {
   aiAgentReviewRevised: 'revised after review',
   aiGalleryLayingOut: 'Laying out panorama canvas...',
   aiGalleryChartsWord: 'charts',
-  aiAgentMode: 'Agent mode: the model assembles the map itself with tools (mind map only, slower)',
+  aiAgentMode: 'Agent mode: the model assembles maps and charts itself with tools (slower)',
   aiStageAgent: 'Agent is assembling the map...',
   aiAgentFixing: 'Self-check found issues; giving the agent one round to fix them...',
   aiAgentForcedStop: 'Tool-call cap reached; finalized with the current map.',

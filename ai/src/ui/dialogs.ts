@@ -15,6 +15,8 @@ import { runAgentChart } from '../agent/agent-chart';
 import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
 import { ensureAgentPanel } from './agent-panel';
 import { revealCellsProgressively } from './reveal';
+
+const ASPECT_RATIO: Record<string, number | undefined> = { 'auto': undefined, '16:9': 16 / 9, '4:3': 4 / 3, '1:1': 1 };
 import type { AgentEvent } from '../agent/events';
 import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
@@ -509,6 +511,18 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     ],
     prefs.layout
   );
+  const aspectLabel = makeLabelCell(t('aiAspect', 'Canvas ratio'));
+  const aspectSelect = makeSelect(
+    [
+      { value: 'auto', label: t('aiAspectAuto', 'Auto') },
+      { value: '16:9', label: '16:9' },
+      { value: '4:3', label: '4:3' },
+      { value: '1:1', label: '1:1' },
+    ],
+    prefs.aspect
+  );
+  table.appendChild(aspectLabel);
+  table.appendChild(aspectSelect);
   table.appendChild(layoutLabel);
   table.appendChild(layoutSelect);
 
@@ -661,6 +675,9 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       maxNodes,
       language: langSelect.value === 'zh' || langSelect.value === 'en' ? langSelect.value : 'auto',
       layout: layoutSelect.value === 'tree' || layoutSelect.value === 'tree-vertical' ? layoutSelect.value : 'radial',
+      aspect: aspectSelect.value === '16:9' || aspectSelect.value === '4:3' || aspectSelect.value === '1:1' || aspectSelect.value === 'auto'
+        ? (aspectSelect.value as 'auto' | '16:9' | '4:3' | '1:1')
+        : '16:9',
       replace: replaceInput.checked,
     };
   };
@@ -702,7 +719,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           try {
             const graph = ui.editor.graph;
             const hasContent = graph.getChildCells(graph.getDefaultParent()).length > 0;
-            const options: BuildMindmapOptions = { notes: agent.notes, layout: prefs.layout };
+            const options: BuildMindmapOptions = { notes: agent.notes, layout: prefs.layout, aspect: ASPECT_RATIO[prefs.aspect] };
             if (prefs.replace) options.replaceExisting = true;
             else if (hasContent) {
               const bounds = graph.getGraphBounds();
@@ -781,7 +798,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
         try {
           const graph = ui.editor.graph;
           const hasContent = graph.getChildCells(graph.getDefaultParent()).length > 0;
-          const options: BuildMindmapOptions = { layout: prefs.layout, notes: result.notes };
+          const options: BuildMindmapOptions = { layout: prefs.layout, notes: result.notes, aspect: ASPECT_RATIO[prefs.aspect] };
           if (result.stats.autotune != null) {
             const a = result.stats.autotune;
             options.rootNote =
@@ -1150,6 +1167,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           const hasContent = graph.getChildCells(graph.getDefaultParent()).length > 0;
           const options: BuildMindmapOptions = {
             layout: genPrefs.layout,
+            aspect: ASPECT_RATIO[genPrefs.aspect],
           };
           if (genPrefs.replace) {
             options.replaceExisting = true;

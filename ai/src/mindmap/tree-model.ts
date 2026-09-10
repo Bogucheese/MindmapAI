@@ -38,6 +38,8 @@ export interface BuildMindmapOptions {
    * 不影响布局与估宽；保存后失效属 P0 已知限制）。
    */
   notes?: DistilledNote[];
+  /** 目标宽高比(如 16/9);缺省不调参 */
+  aspect?: number;
   /** 追加到根节点 tooltip 的说明行（如 AI 自动参数的选定值） */
   rootNote?: string;
 }
@@ -242,7 +244,7 @@ export function buildMindmapFromTree(
       addSubtree(level1[i], rootCell, 1, i);
     }
 
-    createLayoutEngine(options.layout).execute(graph, parent, rootCell);
+    createLayoutEngine(options.layout, options.aspect).execute(graph, parent, rootCell);
   } finally {
     model.endUpdate();
   }

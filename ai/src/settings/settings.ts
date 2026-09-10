@@ -87,6 +87,8 @@ export interface GenerationPrefs {
   maxNodes: number;
   language: 'auto' | 'en' | 'zh';
   layout: 'radial' | 'tree' | 'tree-vertical';
+  /** 画布比例:auto=现状;其余按目标宽高比微调布局间距 */
+  aspect: 'auto' | '16:9' | '4:3' | '1:1';
   replace: boolean;
 }
 
@@ -102,6 +104,7 @@ export const DEFAULT_GENERATION_PREFS: GenerationPrefs = {
   maxNodes: 60,
   language: 'auto',
   layout: 'radial',
+  aspect: '16:9',
   replace: true,
 };
 
@@ -146,6 +149,7 @@ export function loadGenerationPrefs(): GenerationPrefs {
       maxNodes: clampInt(p.maxNodes, 5, 200, DEFAULT_GENERATION_PREFS.maxNodes),
       language: p.language === 'en' || p.language === 'zh' || p.language === 'auto' ? p.language : 'auto',
       layout: p.layout === 'tree' || p.layout === 'tree-vertical' ? p.layout : 'radial',
+      aspect: p.aspect === '16:9' || p.aspect === '4:3' || p.aspect === '1:1' || p.aspect === 'auto' ? p.aspect : '16:9',
       replace: typeof p.replace === 'boolean' ? p.replace : true,
     };
   } catch {

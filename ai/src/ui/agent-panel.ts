@@ -41,6 +41,7 @@ interface PanelDom {
   closeBtn: HTMLDivElement;
   commandInput: HTMLInputElement;
   sendBtn: HTMLDivElement;
+  grip: HTMLDivElement;
 }
 
 const SCORE_LABELS: Array<{ key: string; labelKey: string; fallback: string; color: string }> = [
@@ -60,20 +61,32 @@ function el(tag: string, cssText: string, text?: string): HTMLDivElement {
 const CARD_CSS = 'border:1px solid #E2E8F0;border-radius:8px;padding:6px 8px;background:#FFFFFF;';
 const QUOTE_CSS = 'margin:2px 0 0 0;font-size:8.5pt;color:#64748B;font-style:italic;';
 
-function buildPanelDom(): PanelDom {
+function buildPanelDom(ui: DrawioPluginApi, width: number): PanelDom {
+  // 停靠在主编辑区右侧(Format 面板左侧),随窗口缩放
+  const graphContainer = ui.editor.graph.container as HTMLElement;
+  const host = (graphContainer.parentElement ?? document.body) as HTMLElement;
+  if (window.getComputedStyle(host).position === 'static') {
+    host.style.position = 'relative';
+  }
+
   const root = el('div', [
-    'position:fixed;right:10px;top:10px;bottom:10px;width:340px;z-index:100000;',
-    'display:flex;flex-direction:column;background:#F8FAFC;border:1px solid #CBD5E1;',
-    'border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,0.18);overflow:hidden;',
+    'position:absolute;right:0;top:0;bottom:0;',
+    `width:${width}px;z-index:2;`,
+    'display:flex;flex-direction:column;background:#FFFFFF;',
+    'border-left:1px solid #DADCE0;overflow:hidden;',
   ].join(''));
 
-  const header = el('div', 'display:flex;align-items:center;gap:6px;padding:8px 10px;background:#FFFFFF;border-bottom:1px solid #E2E8F0;');
-  header.appendChild(el('span', 'font-weight:bold;font-size:10pt;color:#1E293B;', 'MindmapAI Agent'));
+  // 左缘拖拽条:调宽(240-640)
+  const grip = el('div', 'position:absolute;left:0;top:0;bottom:0;width:7px;cursor:col-resize;background:transparent;');
+  root.appendChild(grip);
+
+  const header = el('div', 'display:flex;align-items:center;gap:6px;padding:7px 10px;background:#F5F5F5;border-bottom:1px solid #E0E0E0;');
+  header.appendChild(el('span', 'font-weight:bold;font-size:10pt;color:#333333;', 'MindmapAI Agent'));
   header.appendChild(el('span', 'font-size:8pt;color:#6D28D9;background:#EDE9FE;border-radius:8px;padding:1px 7px;', t('aiAgentLive', 'live')));
   const spacer = el('span', 'flex:1 1 auto;');
   header.appendChild(spacer);
-  const clearBtn = el('button', 'border:none;background:none;cursor:pointer;font-size:9pt;color:#64748B;padding:2px 4px;', t('aiAgentClear', 'Clear'));
-  const closeBtn = el('button', 'border:none;background:none;cursor:pointer;font-size:11pt;color:#64748B;padding:0 4px;line-height:1;', '×');
+  const clearBtn = el('button', 'border:none;background:none;cursor:pointer;font-size:9pt;color:#666666;padding:2px 4px;', t('aiAgentClear', 'Clear'));
+  const closeBtn = el('button', 'border:none;background:none;cursor:pointer;font-size:11pt;color:#666666;padding:0 4px;line-height:1;', '×');
   header.appendChild(clearBtn);
   header.appendChild(closeBtn);
 
@@ -81,10 +94,10 @@ function buildPanelDom(): PanelDom {
   const empty = el('div', 'font-size:9pt;color:#94A3B8;padding:12px 4px;line-height:1.5;', t('aiAgentEmpty', 'Waiting for a run — the agent\u2019s distilled notes, review feedback and more will stream here.'));
   log.appendChild(empty);
 
-  const inputRow = el('div', 'display:flex;gap:6px;padding:8px 10px;border-top:1px solid #E2E8F0;background:#FFFFFF;');
+  const inputRow = el('div', 'display:flex;gap:6px;padding:8px 10px;border-top:1px solid #E0E0E0;background:#F5F5F5;');
   const commandInput = document.createElement('input');
   commandInput.setAttribute('type', 'text');
-  commandInput.style.cssText = 'flex:1 1 auto;font-size:9pt;padding:4px 8px;border:1px solid #CBD5E1;border-radius:6px;outline:none;';
+  commandInput.style.cssText = 'flex:1 1 auto;font-size:9pt;padding:4px 8px;border:1px solid #D0D0D0;border-radius:4px;outline:none;background:#FFFFFF;';
   commandInput.placeholder = t('aiCommandPlaceholder', 'Instruct the agent, e.g. unify the term to AI Agent');
   const sendBtn = el('button', 'flex:0 0 auto;font-size:9pt;padding:4px 10px;border:none;border-radius:6px;background:#6D28D9;color:#fff;cursor:pointer;', t('aiSend', 'Send'));
   inputRow.appendChild(commandInput);
@@ -94,14 +107,22 @@ function buildPanelDom(): PanelDom {
   root.appendChild(inputRow);
   document.body.appendChild(root);
 
-  return { root, log, empty, clearBtn, closeBtn, commandInput, sendBtn };
+  return { root, log, empty, clearBtn, closeBtn, commandInput, sendBtn, grip };
 }
 
 export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
   const store = ui as unknown as { __mmAgentPanel?: AgentPanelHandle & { dom: PanelDom } };
   if (store.__mmAgentPanel != null) return store.__mmAgentPanel;
 
-  const dom = buildPanelDom();
+  let width = 340;
+  try {
+    const saved = window.localStorage.getItem('mmAgentPanelWidth');
+    if (saved != null) {
+      const n = Number(saved);
+      if (Number.isFinite(n)) width = Math.max(260, Math.min(640, n));
+    }
+  } catch { /* 忽略 */ }
+  const dom = buildPanelDom(ui, width);
   let userScrolledUp = false;
   let context: AgentPanelContext | null = null;
   let busy = false;
@@ -182,6 +203,50 @@ export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
       send();
     }
   });
+
+  // 拖左缘调宽
+  dom.grip.addEventListener('mousedown', (down) => {
+    down.preventDefault();
+    const startX = (down as MouseEvent).clientX;
+    const startW = dom.root.offsetWidth;
+    const move = (mv: MouseEvent): void => {
+      const w = Math.max(260, Math.min(640, startW + (startX - mv.clientX)));
+      dom.root.style.width = `${w}px`;
+    };
+    const up = (): void => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      try {
+        window.localStorage.setItem('mmAgentPanelWidth', String(dom.root.offsetWidth));
+      } catch { /* 忽略 */ }
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  });
+
+  // 常驻入口:并入右侧 Format 面板的 tab 行(与「绘图/样式」并列);
+  // Format 每次选中变化会重建 DOM,挂 immediateRefresh 每次重挂
+  const fmt = (ui as unknown as { format?: { container: HTMLElement; immediateRefresh: (...a: unknown[]) => void } }).format;
+  if (fmt != null && typeof fmt.immediateRefresh === 'function') {
+    const orig = fmt.immediateRefresh.bind(fmt);
+    fmt.immediateRefresh = (...args: unknown[]) => {
+      const r = orig(...args);
+      try {
+        const row = fmt.container.querySelector('.geFormatContent');
+        if (row != null && row.querySelector('.mmAgentTab') == null) {
+          const tab = document.createElement('div');
+          tab.className = 'geFormatTitle mmAgentTab';
+          tab.setAttribute('title', 'MindmapAI Agent');
+          const label = document.createElement('div');
+          mxUtils.write(label, 'AI Agent');
+          tab.appendChild(label);
+          tab.addEventListener('click', () => handle.toggle());
+          row.appendChild(tab);
+        }
+      } catch { /* Format 结构变化时静默跳过 */ }
+      return r;
+    };
+  }
 
   store.__mmAgentPanel = { ...handle, dom };
   return store.__mmAgentPanel;

@@ -168,7 +168,7 @@ const AGENT_SYSTEM_PROMPT = [
   '1. Call read_notes to study the knowledge points (use query to narrow down; repeat as needed).',
   '2. If the points are thin and the topic clearly needs outside facts, call fetch_url sparingly (at most twice).',
   '3. Place nodes with add_node: root first (parent=null), then children depth by depth, preferring depth-first (finish one branch before starting the next).',
-  '4. Ground every content node via noteIds from read_notes; omit noteIds only for structural nodes.',
+  '4. Ground content nodes via noteIds from read_notes where possible. The notes are raw material, not a cage: reorganize, merge, generalize and add common-sense structure whenever it makes the map clearer — but never contradict the source facts.',
   '5. Call inspect_map anytime to check the current structure; correct yourself with update_node / remove_node.',
   '6. When the map is complete per the rules below, call finish_map with a one-sentence summary. NEVER answer in prose without calling a tool.',
   '',

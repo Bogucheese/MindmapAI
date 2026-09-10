@@ -53,7 +53,7 @@ export function buildExtrasSystemPrompt(): string {
     '- table: compare/categorize key knowledge; 3 columns, 4-8 rows; cell text under 16 chars. For a comparison table use rich, non-overlapping dimensions (e.g. execution model, core logic, output, flexibility, typical scenarios, maintenance cost, analogy) — do not stop at 2-3 obvious ones.',
     '- relations: 2-5 cause-effect / depends-on / contrasts-with relations between concepts, label under 8 chars. A relation arrow NEVER expresses part-whole membership — put components inside a minimap grouping instead. "from"/"to" must reuse the exact labels used elsewhere.',
     '- Progression: extras should read as deep-dive → comparison → relations of the SAME story, not as unrelated islands; keep shared lists consistent across them.',
-    '- Content must come from the knowledge points; do not invent.',
+    '- Treat the knowledge points as raw material: reorganize and generalize freely; never contradict the source facts.',
     '- Write in the same language as the knowledge points.',
     'Reply with the JSON object ONLY: no markdown fences, no explanations.',
   ].join('\n');
