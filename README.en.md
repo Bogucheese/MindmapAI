@@ -47,9 +47,10 @@ MindmapAI injects AI generation capabilities into drawio as a plugin, and ships 
 
 Circle map / bubble map / double bubble map / tree map / flow map / multi-flow map / brace map / Venn diagram / fishbone diagram / timeline / bridge map / org chart — switch with one click in the generation dialog; every type ships with a definition and usage guidance.
 
-- AI picks from 15 drawio shape parts (capsule, diamond, cylinder, swimlane, person, note…) by semantics instead of only using rectangles.
+- AI picks from 20+ drawio shape parts (capsule, diamond, cylinder, swimlane, person, note, plus 8 inline-SVG semantic icons: AI / tool / target / knowledge / group…) by semantics instead of only using rectangles.
 - All charts use **deterministic geometric layouts**; layout functions are unit-tested for zero overlap.
 - **"AI-edit this chart"**: append natural-language revision instructions to an existing chart; changes are validated and redrawn incrementally.
+- **Panorama canvas**: pick "All charts (panorama canvas)" in the generation dialog to generate all 12 thinking charts from the same source onto ONE canvas (one AI call per chart; failed charts are skipped).
 
 ### Layout & editing experience
 
