@@ -37,6 +37,7 @@ MindmapAI injects AI generation capabilities into drawio as a plugin, and ships 
 
 - **Three content sources**: topic only / pasted text / web link. Link mode auto-converts GitHub pages to raw URLs, parses Bilibili video metadata, and falls back gracefully (direct → custom proxy → public fetch proxies), with a zero-dependency [local fetch proxy](ai/tools/local-fetch-proxy.mjs) built in.
 - **Review pipeline**: distill → architect → auto-review; when any of the four quality dimensions scores too low, the map is automatically rebuilt once. Generation can be cancelled at any time.
+- **Agent side panel**: watch the agent work in real time — every distilled note with its verbatim quote, the section skeleton, four-dimension review scores with feedback, rebuild reasons, and per-chart progress (AI → Agent panel).
 - **Deterministic quality checks**: duplicate concepts under the same parent are auto-merged; cross-branch duplicates and over-long flat lists are reported to the reviewer; prompts enforce terminology consistency, single-dimension siblings, and grouped hierarchies.
 - **AI auto-tuning**: depth, branching factor, and node budget are chosen by AI based on content density — or set them manually (depth 1-6 / children 1-10 / max nodes 5-200).
 - **Detail mode**: every point becomes a leaf, with verbatim quotes placed on the canvas as citation nodes; large sources additionally get satellite mini-maps, a summary table, and a relation chart (composite canvas).
