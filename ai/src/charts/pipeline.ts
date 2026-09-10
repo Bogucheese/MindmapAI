@@ -14,9 +14,13 @@ import { layoutChart, type ChartElement, type ChartSlots, type ChartDirection } 
 import { layoutGallery } from './gallery';
 import { validateChartSlots, chartNodeEstimate } from './validate';
 import { buildChartSystemPrompt, buildChartUserPrompt, buildShapeGalleryPrompt } from '../agent/skills';
+import type { AgentEmitter } from '../agent/events';
+import { t } from '../i18n/keys';
 
 export interface ChartGenerationOptions {
   isCancelled?: () => boolean;
+  /** Agent 事件流:提炼要点/每张图完成等真实产物 */
+  onEvent?: AgentEmitter;
   timeoutMs?: number;
   chat?: typeof chatWithJsonFallback;
   direction?: ChartDirection;
@@ -39,7 +43,11 @@ export async function generateChart(
   if (opts.isCancelled?.() === true) {
     return { ok: false, kind: 'cancelled', detail: '' };
   }
-  return chartFromNotes(settings, apiKey, chartType, input.topic, notes.value, opts);
+  const result = await chartFromNotes(settings, apiKey, chartType, input.topic, notes.value, opts);
+  if (result.ok && opts.onEvent != null) {
+    opts.onEvent({ type: 'done', summary: `${CHART_TYPES[chartType].name} · ${result.stats.nodes} ${t('aiAgentNodesWord', 'nodes')}` });
+  }
+  return result;
 }
 
 /** 有来源时提炼(与导图共用同一阶段);无来源返回空要点。 */
@@ -55,6 +63,7 @@ async function distillForInput(
     timeoutMs: opts.timeoutMs ?? 60000,
     chat: opts.chat,
     onProgress: (current, total) => opts.onProgress?.('distill', current, total),
+    onEvent: opts.onEvent,
   });
   if (!dist.ok) {
     return { fail: { ok: false, kind: dist.kind, status: dist.status, detail: dist.detail } };
@@ -102,12 +111,16 @@ async function chartFromNotes(
   if (elements.filter((e) => e.kind === 'vertex').length < 3) {
     return { ok: false, kind: 'schema', detail: '图表内容过少。', raw: res.content };
   }
+  const nodes = chartNodeEstimate(chartType, slots);
+  if (opts.onEvent != null) {
+    opts.onEvent({ type: 'chart', name: CHART_TYPES[chartType].name, nodes });
+  }
   return {
     ok: true,
     type: chartType,
     elements,
     slots,
-    stats: { notes: notes.length, nodes: chartNodeEstimate(chartType, slots) },
+    stats: { notes: notes.length, nodes },
   };
 }
 
@@ -158,13 +171,20 @@ export async function generateChartGallery(
     } else {
       failed.push({ type, detail: r.detail });
       console.warn('[MindmapAI] gallery chart failed:', type, r.detail);
+      opts.onEvent?.({ type: 'warn', text: `${CHART_TYPES[type].name}: ${r.detail}` });
     }
   }
   if (charts.length === 0) {
     return { ok: false, kind: 'schema', detail: '全部图型生成失败。' };
   }
   opts.onProgress?.('render');
+  if (opts.onEvent != null) {
+    opts.onEvent({ type: 'info', stage: 'render', text: t('aiGalleryLayingOut', 'Laying out panorama canvas...') });
+  }
   const elements = layoutGallery(charts);
+  if (opts.onEvent != null) {
+    opts.onEvent({ type: 'done', summary: `${charts.length}/${CHART_TYPE_ORDER.length} ${t('aiGalleryChartsWord', 'charts')} · ${notes.value.length} ${t('aiAgentNotesWord', 'notes')}` });
+  }
   return {
     ok: true,
     elements,

@@ -5,6 +5,7 @@
 
 import { showGenerateDialog, showSettingsDialog, showShapeGalleryDialog } from './dialogs';
 import { showChartEditDialog } from './chart-edit';
+import { ensureAgentPanel } from './agent-panel';
 import { buildMindmapFromTree } from '../mindmap/tree-model';
 import { DEMO_TREE } from '../mindmap/fixture';
 
@@ -12,6 +13,11 @@ export function registerActions(ui: DrawioPluginApi): void {
   // AI → 生成思维导图：主题 → DeepSeek → 上画布（M6）
   ui.actions.addAction('aiGenerate', function () {
     showGenerateDialog(ui);
+  });
+
+  // AI → Agent 面板：实时展示生成过程(要点原文/评审意见/图表进度)
+  ui.actions.addAction('aiAgentPanel', function () {
+    ensureAgentPanel(ui).toggle();
   });
 
   // AI → 设置：供应商配置 + 测试连接（M3）

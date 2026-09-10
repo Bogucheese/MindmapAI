@@ -10,6 +10,8 @@
 import { generateMindmapTree, testConnection } from '../ai/client';
 import { generateMindmapFromSource } from '../agent/pipeline';
 import { generateChart, generateChartGallery, generateShapeGallery } from '../charts/pipeline';
+import { ensureAgentPanel } from './agent-panel';
+import type { AgentEvent } from '../agent/events';
 import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
 import { attachChartSlots } from '../mindmap/tree-model';
@@ -651,10 +653,14 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     topic: string,
     doc: SourceDoc
   ): void => {
+    const agentPanel = ensureAgentPanel(ui);
+    agentPanel.clear();
+    agentPanel.show();
     generateMindmapFromSource(settings, apiKey, { topic, doc }, prefs, {
       isCancelled: () => cancelled,
       detailMode: prefs.detailMode,
       autoConstraints: prefs.autoParams,
+      onEvent: (e: AgentEvent) => agentPanel.append(e),
       onProgress: (p) => {
         if (p.stage === 'distill' && p.total != null && p.total > 1) {
           const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${p.current ?? 0}/${p.total})`;
@@ -784,9 +790,14 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           const settings: AiProviderSettings = loadSettings();
           const chartDirection = genPrefs.chartDirection === 'horizontal' ? 'horizontal' : 'vertical';
           const isGallery = genPrefs.chartType === 'gallery';
+          const agentPanel = ensureAgentPanel(ui);
+          agentPanel.clear();
+          agentPanel.show();
+          const onAgentEvent = (e: AgentEvent): void => agentPanel.append(e);
           const genResult = isGallery
             ? generateChartGallery(settings, apiKey, { topic, doc }, {
                 isCancelled: () => cancelled,
+                onEvent: onAgentEvent,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
                     const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;
@@ -806,6 +817,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
                 direction: chartDirection,
                 isCancelled: () => cancelled,
+                onEvent: onAgentEvent,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
                     const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;

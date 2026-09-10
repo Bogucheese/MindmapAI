@@ -26,8 +26,22 @@ import {
   buildDistillUserPrompt,
 } from './skills';
 import type { CritiqueReport, DistilledNote, SourceDoc } from './types';
+import type { AgentEmitter, AgentNoteItem } from './events';
+import { t } from '../i18n/keys';
 
 export type PipelineStage = 'ingest' | 'distill' | 'autotune' | 'architect' | 'critique' | 'render';
+
+const STAGE_LABEL_KEYS: Record<PipelineStage, string> = {
+  ingest: 'aiStageIngest',
+  distill: 'aiStageDistill',
+  autotune: 'aiStageAutotune',
+  architect: 'aiStageArchitect',
+  critique: 'aiStageCritique',
+  render: 'aiStageRender',
+};
+
+const countTreeNodes = (node: MindmapTree): number =>
+  1 + (node.children ?? []).reduce((acc, c) => acc + countTreeNodes(c), 0);
 
 export interface PipelineProgress {
   stage: PipelineStage;
@@ -47,6 +61,8 @@ export interface PipelineOptions {
   autoConstraints?: boolean;
   /** 详细模式:全部要点逐条成叶、引文成引用子节点,跳过合并与预算 */
   detailMode?: boolean;
+  /** Agent 事件流:把各阶段真实中间产物(要点原文/评审分数/回炉原因)推给侧边栏 */
+  onEvent?: AgentEmitter;
   /** 测试注入：默认 chatWithJsonFallback */
   chat?: typeof chatWithJsonFallback;
 }
@@ -436,6 +452,7 @@ export async function distillNotes(
     timeoutMs?: number;
     chat?: typeof chatWithJsonFallback;
     onProgress?: (current: number, total: number) => void;
+    onEvent?: AgentEmitter;
   } = {}
 ): Promise<DistillOutcome | { ok: false; kind: ChatFailureKind | 'cancelled' | 'no-notes'; status?: number; detail: string }> {
   const chat = opts.chat ?? chatWithJsonFallback;
@@ -470,6 +487,18 @@ export async function distillNotes(
       notes.push(n);
     }
     if (notes.length >= MAX_NOTES_TOTAL) break;
+    if (opts.onEvent != null && batch.length > 0) {
+      const items: AgentNoteItem[] = batch.map((n) => ({
+        content: n.content,
+        ...(n.quote !== '' ? { quote: n.quote } : {}),
+      }));
+      opts.onEvent({
+        type: 'notes', stage: 'distill',
+        chunk: i + 1, total: chunks.length,
+        ...(chunks[i].headingPath != null ? { heading: chunks[i].headingPath } : {}),
+        notes: items,
+      });
+    }
   }
   if (notes.length === 0) {
     if (lastFailure != null) {
@@ -491,11 +520,17 @@ export async function generateMindmapFromSource(
   const timeoutMs = opts.timeoutMs ?? 60000;
   const critiqueEnabled = opts.critiqueEnabled !== false;
   const isCancelled = () => opts.isCancelled?.() === true;
-  const onProgress = opts.onProgress ?? (() => {});
   const topic = input.topic.trim();
+  const onEvent = opts.onEvent;
+  const emitProgress = (p: PipelineProgress): void => {
+    opts.onProgress?.(p);
+    if (onEvent != null) {
+      onEvent({ type: 'stage', stage: p.stage, label: t(STAGE_LABEL_KEYS[p.stage], p.stage) });
+    }
+  };
 
   // INGEST：粘贴文本模式下来源已在进入管线前构建完毕
-  onProgress({ stage: 'ingest', total: input.doc.chunks.length });
+  emitProgress({ stage: 'ingest', total: input.doc.chunks.length });
   if (isCancelled()) {
     return { ok: false, kind: 'cancelled', detail: '' };
   }
@@ -505,7 +540,8 @@ export async function generateMindmapFromSource(
     isCancelled,
     timeoutMs,
     chat,
-    onProgress: (current, total) => onProgress({ stage: 'distill', current, total }),
+    onProgress: (current, total) => emitProgress({ stage: 'distill', current, total }),
+    onEvent,
   });
   if (!dist.ok) {
     return { ok: false, kind: dist.kind, status: dist.status, detail: dist.detail };
@@ -516,6 +552,9 @@ export async function generateMindmapFromSource(
   // depth 下限防裸分支（parse 截断的根因）；maxNodes 是硬预算——思维导图
   // 是概览而非全文镜像，architect 按预算把相关要点合并成叶子。
   const skeleton = buildSkeleton(notes);
+  if (onEvent != null && skeleton.root.children.length > 0) {
+    onEvent({ type: 'skeleton', sections: skeleton.root.children.map((sec) => sec.label) });
+  }
   const depthFloor = Math.min(skeleton.maxDepth + 2, 6);
   let architectConstraints: GenerationConstraints = {
     ...constraints,
@@ -537,17 +576,18 @@ export async function generateMindmapFromSource(
         isCancelled,
         timeoutMs,
         chat,
-        onProgress: (stage: 'architect' | 'render') => onProgress({ stage: stage === 'architect' ? 'architect' : 'render' }),
+        onEvent,
+        onProgress: (stage: 'architect' | 'render') => emitProgress({ stage: stage === 'architect' ? 'architect' : 'render' }),
       });
     }
-    onProgress({ stage: 'architect' });
+    emitProgress({ stage: 'architect' });
   }
   let autotune: AutotuneChoice | null = null;
   if (!opts.detailMode && opts.autoConstraints === true) {
     if (isCancelled()) {
       return { ok: false, kind: 'cancelled', detail: '' };
     }
-    onProgress({ stage: 'autotune' });
+    emitProgress({ stage: 'autotune' });
     const res = await chat(settings, apiKey, [
       { role: 'system', content: buildAutotuneSystemPrompt() },
       { role: 'user', content: buildAutotuneUserPrompt(topic, notes, skeleton) },
@@ -558,6 +598,9 @@ export async function generateMindmapFromSource(
         const depth = Math.max(autotune.depth, depthFloor);
         architectConstraints = { ...architectConstraints, depth, maxChildren: autotune.maxChildren, maxNodes: autotune.maxNodes };
         autotune = { ...autotune, depth };
+        if (onEvent != null) {
+          onEvent({ type: 'autotune', depth: autotune.depth, maxChildren: autotune.maxChildren, maxNodes: autotune.maxNodes, reason: autotune.reason });
+        }
       }
     }
   }
@@ -579,7 +622,7 @@ export async function generateMindmapFromSource(
   if (isCancelled()) {
     return { ok: false, kind: 'cancelled', detail: '' };
   }
-  onProgress({ stage: 'architect' });
+  emitProgress({ stage: 'architect' });
   const architectMessages = (): ChatMessage[] => [
     { role: 'system', content: buildArchitectSystemPrompt(architectConstraints, skeleton.text) },
     { role: 'user', content: buildArchitectUserPrompt(topic, architectNotes, skeleton.text, quotaLines.join('\n')) },
@@ -611,7 +654,7 @@ export async function generateMindmapFromSource(
   let built: { ok: true; tree: MindmapTree; dropped: number; raw: string } | { ok: false; fail: PipelineResult } | { ok: false; raw: string };
   if (opts.detailMode === true && skeleton.text !== '') {
     // 详细模式:跳过 architect,骨架 + 全部要点确定性装配
-    onProgress({ stage: 'architect' });
+    emitProgress({ stage: 'architect' });
     const det = assembleMindmap(skeleton.root, null, quotaFor, topic);
     built = { ok: true, tree: det.tree, dropped: det.dropped, raw: '' };
   } else {
@@ -639,6 +682,9 @@ export async function generateMindmapFromSource(
   tree = deduped.tree;
   if (deduped.merged > 0) {
     console.info('[MindmapAI] deduped sibling labels:', deduped.merged);
+    if (onEvent != null) {
+      onEvent({ type: 'info', stage: 'architect', text: `${t('aiAgentDeduped', 'Auto-merged duplicate sibling nodes')}: ${deduped.merged}` });
+    }
   }
 
   // CRITIQUE：rubric 评分；不达标（任一维度 <70）携反馈回炉一次
@@ -648,7 +694,7 @@ export async function generateMindmapFromSource(
     if (isCancelled()) {
       return { ok: false, kind: 'cancelled', detail: '' };
     }
-    onProgress({ stage: 'critique' });
+    emitProgress({ stage: 'critique' });
     const critiqueMessages: ChatMessage[] = [
       { role: 'system', content: buildCritiqueSystemPrompt() },
       { role: 'user', content: buildCritiqueUserPrompt(topic, tree, architectNotes, skeleton.text, findStructureIssues(tree)) },
@@ -660,6 +706,9 @@ export async function generateMindmapFromSource(
     });
     if (res.ok) {
       critique = parseCritiqueReport(res.content);
+      if (critique != null && onEvent != null) {
+        onEvent({ type: 'critique', scores: critique.scores, verdict: critique.verdict, feedback: critique.feedback });
+      }
     }
     if (
       critique != null &&
@@ -672,7 +721,7 @@ export async function generateMindmapFromSource(
       if (isCancelled()) {
         return { ok: false, kind: 'cancelled', detail: '' };
       }
-      onProgress({ stage: 'architect' });
+      emitProgress({ stage: 'architect' });
       const reviseUser = skeleton.text !== ''
         ? `${buildArchitectUserPrompt(topic, architectNotes, skeleton.text, quotaLines.join('\n'))}\n\nReviewer feedback you must address: ${critique.feedback.slice(0, 400)}`
         : buildArchitectReviseUserPrompt(topic, tree, critique.feedback);
@@ -685,6 +734,9 @@ export async function generateMindmapFromSource(
         tree = rededuped.tree;
         dropped += revised.dropped;
         revisions = 1;
+        if (onEvent != null && critique != null) {
+          onEvent({ type: 'revise', feedback: critique.feedback });
+        }
         if (rededuped.merged > 0) {
           console.info('[MindmapAI] deduped sibling labels after revise:', rededuped.merged);
         }
@@ -693,7 +745,7 @@ export async function generateMindmapFromSource(
     }
   }
 
-  onProgress({ stage: 'render' });
+  emitProgress({ stage: 'render' });
   let extras: ChartElement[] | undefined;
   if (extrasPromise != null) {
     try {
@@ -708,6 +760,15 @@ export async function generateMindmapFromSource(
       console.warn('[MindmapAI] extras failed:', err);
       // extras 失败不影响主图
     }
+  }
+  if (onEvent != null) {
+    const reviewPart =
+      critique == null
+        ? t('aiAgentReviewOff', 'review off')
+        : critique.verdict === 'pass'
+          ? `${t('aiAgentReviewPass', 'review passed')} (${critique.scores.structure})`
+          : t('aiAgentReviewRevised', 'revised after review');
+    onEvent({ type: 'done', summary: `${notes.length} ${t('aiAgentNotesWord', 'notes')} · ${countTreeNodes(tree)} ${t('aiAgentNodesWord', 'nodes')} · ${reviewPart}` });
   }
   return {
     ok: true,

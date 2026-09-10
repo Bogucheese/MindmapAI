@@ -9,9 +9,12 @@ import type { DistilledNote } from '../agent/types';
 import type { SkeletonStats } from '../agent/pipeline';
 import { parseExtrasSlots, layoutExtras } from './extras';
 import type { ChartElement } from './layout';
+import type { AgentEmitter } from '../agent/events';
 
 export interface ExtrasOptions {
   isCancelled?: () => boolean;
+  /** Agent 事件流:复合画布产物摘要 */
+  onEvent?: AgentEmitter;
   timeoutMs?: number;
   chat?: typeof chatWithJsonFallback;
   onProgress?: (stage: 'architect' | 'render') => void;
@@ -81,5 +84,13 @@ export async function generateExtras(
     return { ok: false, detail: 'extras 回复无法解析。', raw: res.content };
   }
   opts.onProgress?.('render');
+  if (opts.onEvent != null) {
+    opts.onEvent({
+      type: 'extras',
+      minimaps: slots.minimaps.map((m) => ({ title: m.title, items: m.items.length })),
+      tableRows: slots.table.rows.length,
+      relations: slots.relations.length,
+    });
+  }
   return { ok: true, elements: layoutExtras(slots) };
 }

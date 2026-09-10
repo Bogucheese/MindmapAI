@@ -10,6 +10,33 @@
 
 export const EN_STRINGS: Record<string, string> = {
   aiMindmap: 'AI',
+  aiAgentPanel: 'Agent panel',
+  aiAgentLive: 'live',
+  aiAgentClear: 'Clear',
+  aiAgentEmpty: "Waiting for a run — the agent's distilled notes, review feedback and more will stream here.",
+  aiAgentNotesWord: 'notes',
+  aiAgentNodesWord: 'nodes',
+  aiAgentAutotune: 'Auto-tuned parameters',
+  aiAgentSkeleton: 'Section skeleton',
+  aiAgentReview: 'AI review',
+  aiCritGrounding: 'grounding',
+  aiCritCoverage: 'coverage',
+  aiCritSpecificity: 'specificity',
+  aiCritStructure: 'structure',
+  aiAgentVerdictPass: 'PASS',
+  aiAgentVerdictRevise: 'NEEDS REVISION',
+  aiAgentRevising: 'Rebuilding map from review feedback...',
+  aiAgentExtras: 'Composite canvas extras',
+  aiAgentMinimapsWord: 'minimaps',
+  aiAgentTableRowsWord: 'table rows',
+  aiAgentRelationsWord: 'relations',
+  aiAgentDone: 'Done',
+  aiAgentDeduped: 'Auto-merged duplicate sibling nodes',
+  aiAgentReviewOff: 'review off',
+  aiAgentReviewPass: 'review passed',
+  aiAgentReviewRevised: 'revised after review',
+  aiGalleryLayingOut: 'Laying out panorama canvas...',
+  aiGalleryChartsWord: 'charts',
   aiGenerate: 'Generate Mind Map...',
   aiAutoParams: 'AI picks the best depth / branches / cap',
   aiStageAutotune: 'Choosing optimal parameters...',
@@ -100,6 +127,8 @@ export const EN_STRINGS: Record<string, string> = {
 };
 
 export function t(key: string, fallbackEn: string): string {
+  // 非 drawio 环境(单元测试/Node)无 mxResources,直接用兜底文案
+  if (typeof mxResources === 'undefined') return fallbackEn;
   const value = mxResources.get(key, null, fallbackEn);
   return value != null ? String(value) : fallbackEn;
 }
