@@ -60,6 +60,7 @@ Circle map / bubble map / double bubble map / tree map / flow map / multi-flow m
 - Radial / vertical tree / horizontal tree layouts; tree, flow, and org charts can switch direction; after replacing or expanding nodes, the layout type is recognized from edge styles and the whole map is re-arranged automatically.
 - Single-transaction building: Ctrl+Z undoes the entire generated map in one step; AI-generated content carries style markers, so replacements never touch hand-drawn content.
 - **Progressive placement animation**: after generation, nodes appear on the canvas one by one in assembly order (pure visual fade-in — no undo-stack changes, Ctrl+Z still undoes the whole map in one step).
+- **Canvas ratio**: 16:9 / 4:3 / 1:1 / auto — layout spacing adapts to the target ratio, so maps stop being one long strip.
 - Generation options (dialog values, provider, keys) are remembered automatically.
 
 ### Multi-provider model access
