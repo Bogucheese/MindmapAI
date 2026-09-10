@@ -263,7 +263,9 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
     const side = horizontal
       ? 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;'
       : 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
-    const style = 'edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' +
+    // 跨泳道用直线虚线:泳道间隔窄,正交路由会在沟里来回绕
+    const base = crossLane ? 'edgeStyle=none;rounded=0;' : 'edgeStyle=orthogonalEdgeStyle;rounded=1;';
+    const style = base + 'html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' +
       (crossLane ? side : flow) +
       (dashed || crossLane ? 'dashed=1;dashPattern=6 4;' : '');
     els.push(E(byIndex[i], byIndex[i + 1], arrow, style));

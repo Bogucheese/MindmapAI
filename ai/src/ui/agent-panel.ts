@@ -12,12 +12,10 @@ import type { MindmapTree } from '../ai/schema';
 import type { DistilledNote } from '../agent/types';
 import { t } from '../i18n/keys';
 
-/** 面板上下文:最近一次 AI 生成的导图,供命令 Agent 修改 */
-export interface AgentPanelContext {
-  tree: MindmapTree;
-  notes: DistilledNote[];
-  layout: 'radial' | 'tree' | 'tree-vertical';
-}
+/** 面板上下文:最近一次 AI 生成结果,供命令 Agent 修改 */
+export type AgentPanelContext =
+  | { kind: 'mindmap'; tree: MindmapTree; notes: DistilledNote[]; layout: 'radial' | 'tree' | 'tree-vertical'; aspect: 'auto' | '16:9' | '4:3' | '1:1' }
+  | { kind: 'chart'; type: string; slots: unknown; direction: 'vertical' | 'horizontal' };
 
 export interface AgentPanelHandle {
   show(): void;
@@ -111,7 +109,7 @@ function buildPanelDom(ui: DrawioPluginApi, width: number): PanelDom {
 }
 
 export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
-  const store = ui as unknown as { __mmAgentPanel?: AgentPanelHandle & { dom: PanelDom } };
+  const store = ui as unknown as { __mmAgentPanel?: AgentPanelHandle };
   if (store.__mmAgentPanel != null) return store.__mmAgentPanel;
 
   let width = 340;
@@ -152,7 +150,8 @@ export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
     userScrolledUp = false;
   };
 
-  const handle: AgentPanelHandle = {
+  let handle: AgentPanelHandle;
+  handle = {
     show: () => {
       dom.root.style.display = 'flex';
       scrollToEnd();
@@ -248,8 +247,8 @@ export function ensureAgentPanel(ui: DrawioPluginApi): AgentPanelHandle {
     };
   }
 
-  store.__mmAgentPanel = { ...handle, dom };
-  return store.__mmAgentPanel;
+  store.__mmAgentPanel = handle;
+  return handle;
 }
 
 /* ---------- 事件 → 卡片 ---------- */

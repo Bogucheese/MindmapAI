@@ -727,7 +727,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             }
             const builtMap = buildMindmapFromTree(ui, agent.tree, options);
             revealCellsProgressively(graph, builtMap.placedCells, 4500);
-            agentPanel.setContext({ tree: agent.tree, notes: agent.notes, layout: prefs.layout });
+            agentPanel.setContext({ kind: 'mindmap', tree: agent.tree, notes: agent.notes, layout: prefs.layout, aspect: prefs.aspect });
             console.info('[MindmapAI] agent generated:', agent.stats, agent.summary);
             setStatus(`${t('aiAgentDoneStatus', 'Agent finished')}: ${agent.summary}`, COLOR_NOTICE);
             ui.hideDialog();
@@ -815,7 +815,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           const builtMap = buildMindmapFromTree(ui, result.tree, options);
           // 逐个放置动画:DFS 序渐显(纯视觉,不进撤销栈);extras 在主图放完后接续
           revealCellsProgressively(graph, builtMap.placedCells, 4500);
-          agentPanel.setContext({ tree: result.tree, notes: result.notes, layout: prefs.layout });
+          agentPanel.setContext({ kind: 'mindmap', tree: result.tree, notes: result.notes, layout: prefs.layout, aspect: prefs.aspect });
           // 复合画布:extras(支线小图/表格/关系图)排到主图右侧
           if (result.extras != null && result.extras.length > 0) {
             const boundsAfter = graph.getGraphBounds();
@@ -1178,7 +1178,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           try {
             const builtMap = buildMindmapFromTree(ui, result.tree, options);
             revealCellsProgressively(graph, builtMap.placedCells, 4500);
-            ensureAgentPanel(ui).setContext({ tree: result.tree, notes: [], layout: genPrefs.layout });
+            ensureAgentPanel(ui).setContext({ kind: 'mindmap', tree: result.tree, notes: [], layout: genPrefs.layout, aspect: genPrefs.aspect });
             console.info('[MindmapAI] generated:', result.stats);
             ui.hideDialog();
           } catch (err) {
