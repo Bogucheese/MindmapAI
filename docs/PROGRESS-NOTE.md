@@ -56,6 +56,30 @@
 - **未能在本环境验证**：桌面版 CDP 回归（需安装应用）；真实模型行为
   （需用户 Key）。
 
+## 真实模型全流程测试（DeepSeek + 本地抓取代理，runoob 链接）
+
+- **链接模式导图管线** ✓：runoob 经本地代理(8788)抓取 → 30 条要点(带原文
+  引文) → 评审 NEEDS REVISION 并给出具体意见(下沉 Dify/LangChain/AutoGen
+  等框架名、拆分秒哒/MonkeyCode) → 回炉重构 → ✓ Done 24 节点 + 复合画布
+  extras(3 支线图/6 行表格/4 关系)
+- **图表 Agent 模式** ✓：DeepSeek function calling 真实调用
+  read_notes×3(含空查询自纠) → submit_chart(校验通过,10 节点流程图：
+  用户→输入任务目标→Agent 大脑(LLM)→工具与环境…)
+- **命令框** ✓：自然语言指令 → 真实 update_node+add_node+finish_changes
+  → 画布同步重建(根改名+新增子节点)
+- **全程零控制台错误**
+
+### F12 报错结论（用户提供）
+
+- `unload Permissions policy violation` / `apis.google.com`、
+  `dropbox.com dropins.js` 超时：drawio 自带资源,国内不可达,仅噪音
+- **CORS 拦截 runoob + r.jina.ai 超时**：浏览器模式链接抓取的真实限制。
+  解法已验证 = 运行 `node ai/tools/local-fetch-proxy.mjs` 并在
+  AI→设置→抓取代理 填 `http://127.0.0.1:8788/`（或直接用桌面版,主进程
+  抓取无 CORS）
+- 待办候选：默认公共代理 fallback 超时缩短/更早提示；index.html 移除
+  Google/Dropbox 脚本加速国内首屏
+
 ## 待用户反馈 / 待办
 
 - **用户侧**：F12 控制台报错文本（上轮被截断未收到）；Agent 模式、画布比例、
