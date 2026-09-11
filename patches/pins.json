@@ -4,7 +4,7 @@
     "commit": "074a2ea4f2be105b1fe7cae9a26ecc15761dcef6",
     "upstreamVersion": "v31.4.2",
     "bootstrapV": 4,
-    "bundleV": 41
+    "bundleV": 44
   },
   "desktop": {
     "repo": "https://github.com/jgraph/drawio-desktop.git",

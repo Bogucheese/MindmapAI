@@ -22,6 +22,8 @@ function registerPlugin(ui: DrawioPluginApi): void {
   ui.updateDocumentTitle?.();
   registerActions(ui);
   registerMenus(ui);
+  // 调试句柄:F12 里可通过 __mmUI 直接访问 EditorUi 实例(actions/graph 等)
+  (window as unknown as { __mmUI: unknown }).__mmUI = ui;
   registerPopupMenu(ui);
   // 调试句柄：控制台可用 MindmapAI.ui.editor.graph 检查模型/几何
   (window as unknown as { MindmapAI?: unknown }).MindmapAI = { ui };

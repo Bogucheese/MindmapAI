@@ -30,6 +30,32 @@
 - 命令框 dead bug：单例浅拷贝导致 onCommand 绑定丢失（已改为存 handle 本体）
 - 命令框支持思考图：editChart 槽位修正 + 重建
 
+## 自检记录（最近一次全量测试）
+
+- **静态**：tsc 零错误；vitest 131+2=133 全绿（新增泳道越界/连线样式回归测试）；
+  esbuild 构建通过（v44）。
+- **死代码清扫**：删除 3 个无引用导出（isChartTypeId/chartTypePrompt/
+  dashedEdgeStyle）；ASPECT_RATIO 收敛到 settings.ts（原 dialogs 与
+  agent-commands 各有一份）；i18n 123 个键逐一核对无死键（7 个疑似均为
+  动态引用误报）。
+- **浏览器端到端（IAB + dev-mock-server:8787）**：
+  - 应用加载零控制台错误；Format 区「AI Agent」tab、右下双徽标、停靠面板 ✓
+  - 示例导图上画布（13 节点）✓
+  - 命令框发送链路 ✓（用户气泡 + Agent 警告/答复）
+  - 粘贴模式完整管线 ✓：PREPARING → DISTILLING（要点原文卡片）→
+    STRUCTURING → REVIEWING（92/88/85/90 PASS + 评语）→ DRAWING →
+    ✓ Done 9 节点；画布出现 mock 树
+  - 流程图（mock 无 chart 阶段脚本）：校验捕获「缺少必需字段 title」，
+    画布保持原状 —— 错误路径优雅 ✓
+  - 图表 Agent 模式（mock 无 tool_calls）：notes 事件 + AGENT IS DESIGNING
+    阶段 + 「Agent 未提交图表槽位」优雅报错 ✓；导图 Agent 循环由单测覆盖
+- **测试中发现并当场修复的 bug**：
+  1. 兜底菜单工厂缺少「Agent panel」项（只在主工厂加了）——已补；
+  2. 命令框 dead bug（上轮 spread 拷贝）——已修；
+  3. 为可调试性新增 `window.__mmUI` 调试句柄（F12 可直接访问 EditorUi 实例）。
+- **未能在本环境验证**：桌面版 CDP 回归（需安装应用）；真实模型行为
+  （需用户 Key）。
+
 ## 待用户反馈 / 待办
 
 - **用户侧**：F12 控制台报错文本（上轮被截断未收到）；Agent 模式、画布比例、

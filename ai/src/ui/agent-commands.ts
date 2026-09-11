@@ -10,7 +10,7 @@ import { buildChartElements } from '../charts/assemble';
 import type { ChartSlots } from '../charts/layout';
 import type { ChartTypeId } from '../charts/catalog';
 import { buildMindmapFromTree, attachChartSlots } from '../mindmap/tree-model';
-import { loadSettings } from '../settings/settings';
+import { ASPECT_RATIO, loadSettings } from '../settings/settings';
 import { getApiKey } from '../settings/secure-store';
 import { t } from '../i18n/keys';
 import { revealCellsProgressively } from './reveal';
@@ -68,7 +68,7 @@ export function bindAgentCommands(ui: DrawioPluginApi, panel: AgentPanelHandle):
     const built = buildMindmapFromTree(ui, result.tree, {
       notes: ctx.notes,
       layout: ctx.layout,
-      aspect: { 'auto': undefined, '16:9': 16 / 9, '4:3': 4 / 3, '1:1': 1 }[ctx.aspect],
+      aspect: ASPECT_RATIO[ctx.aspect],
       replaceExisting: true,
     });
     revealCellsProgressively(ui.editor.graph, built.placedCells, 2500);

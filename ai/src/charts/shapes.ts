@@ -124,11 +124,6 @@ const ICON_PARTS: ChartShape[] = [
 export const ICON_SHAPE_KEYS: ReadonlySet<string> = new Set(ICON_PARTS.map((s) => s.key));
 Object.assign(CHART_SHAPES, Object.fromEntries(ICON_PARTS.map((s) => [s.key, s])));
 
-/** 虚线边样式(在基础边样式上叠加) */
-export function dashedEdgeStyle(baseStyle: string): string {
-  return baseStyle + 'dashed=1;dashPattern=6 4;';
-}
-
 /** chart 元数据里引用的语义 key 白名单(按图类型收窄) */
 export function resolveShape(key: string | undefined, fallback: string): string {
   const shape = key != null ? CHART_SHAPES[key] : undefined;

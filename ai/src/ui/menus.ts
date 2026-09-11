@@ -62,6 +62,7 @@ export function registerMenus(ui: DrawioPluginApi): void {
     );
     const elt = ui.menubar.addMenu(t(AI_MENU_KEY, 'AI'), function (menu, parent) {
       ui.menus.addMenuItem(menu, 'aiGenerate', parent);
+      ui.menus.addMenuItem(menu, 'aiAgentPanel', parent);
       ui.menus.addMenuItem(menu, 'aiShapeGallery', parent);
       if (readChartSlots(ui.editor.graph) != null) {
         ui.menus.addMenuItem(menu, 'aiChartEdit', parent);

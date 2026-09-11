@@ -16,7 +16,7 @@ import { generateChart, generateChartGallery, generateShapeGallery } from '../ch
 import { ensureAgentPanel } from './agent-panel';
 import { revealCellsProgressively } from './reveal';
 
-const ASPECT_RATIO: Record<string, number | undefined> = { 'auto': undefined, '16:9': 16 / 9, '4:3': 4 / 3, '1:1': 1 };
+
 import type { AgentEvent } from '../agent/events';
 import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
@@ -33,6 +33,8 @@ import {
   saveSettings,
   type AiProviderSettings,
   type GenerationPrefs,
+  ASPECT_RATIO,
+  type CanvasAspect,
 } from '../settings/settings';
 import { clearApiKey, describeStorage, getApiKey, setApiKey } from '../settings/secure-store';
 import { CUSTOM_PROVIDER, PROVIDER_PRESETS } from '../providers';
@@ -676,7 +678,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       language: langSelect.value === 'zh' || langSelect.value === 'en' ? langSelect.value : 'auto',
       layout: layoutSelect.value === 'tree' || layoutSelect.value === 'tree-vertical' ? layoutSelect.value : 'radial',
       aspect: aspectSelect.value === '16:9' || aspectSelect.value === '4:3' || aspectSelect.value === '1:1' || aspectSelect.value === 'auto'
-        ? (aspectSelect.value as 'auto' | '16:9' | '4:3' | '1:1')
+        ? (aspectSelect.value as CanvasAspect)
         : '16:9',
       replace: replaceInput.checked,
     };

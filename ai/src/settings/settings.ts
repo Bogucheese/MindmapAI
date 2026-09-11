@@ -88,9 +88,16 @@ export interface GenerationPrefs {
   language: 'auto' | 'en' | 'zh';
   layout: 'radial' | 'tree' | 'tree-vertical';
   /** 画布比例:auto=现状;其余按目标宽高比微调布局间距 */
-  aspect: 'auto' | '16:9' | '4:3' | '1:1';
+  aspect: CanvasAspect;
   replace: boolean;
 }
+
+/** 画布比例 → 布局调参目标宽高比;auto = 不调参 */
+export type CanvasAspect = 'auto' | '16:9' | '4:3' | '1:1';
+
+export const ASPECT_RATIO: Record<CanvasAspect, number | undefined> = {
+  'auto': undefined, '16:9': 16 / 9, '4:3': 4 / 3, '1:1': 1,
+};
 
 export const DEFAULT_GENERATION_PREFS: GenerationPrefs = {
   sourceMode: 'topic',
@@ -149,7 +156,7 @@ export function loadGenerationPrefs(): GenerationPrefs {
       maxNodes: clampInt(p.maxNodes, 5, 200, DEFAULT_GENERATION_PREFS.maxNodes),
       language: p.language === 'en' || p.language === 'zh' || p.language === 'auto' ? p.language : 'auto',
       layout: p.layout === 'tree' || p.layout === 'tree-vertical' ? p.layout : 'radial',
-      aspect: p.aspect === '16:9' || p.aspect === '4:3' || p.aspect === '1:1' || p.aspect === 'auto' ? p.aspect : '16:9',
+      aspect: p.aspect === '16:9' || p.aspect === '4:3' || p.aspect === '1:1' || p.aspect === 'auto' ? (p.aspect as CanvasAspect) : '16:9',
       replace: typeof p.replace === 'boolean' ? p.replace : true,
     };
   } catch {

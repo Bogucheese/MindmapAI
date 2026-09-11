@@ -146,11 +146,3 @@ export const CHART_TYPE_ORDER: ChartTypeId[] = [
   'org',
 ];
 
-export function isChartTypeId(v: string): v is ChartTypeId {
-  return Object.prototype.hasOwnProperty.call(CHART_TYPES, v);
-}
-
-/** 供 prompt 的类型说明(一段) */
-export function chartTypePrompt(meta: ChartTypeMeta): string {
-  return `${meta.name} — 定义:${meta.definition} 优点/适用:${meta.pros}\n输出槽位(严格 JSON):${meta.slots}\n示例:${meta.example}`;
-}
