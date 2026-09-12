@@ -202,6 +202,7 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
       ? { x: origin.x - 20, y: origin.y + 30, w: 260, h: 240 }
       : { x: origin.x - 20, y: origin.y - 30, w: 260, h: 300 };
   };
+  const idToStep = new Map<string, number>();
   steps.slice(0, 10).forEach((st, i) => {
     const label = str(st.label, `步骤${i + 1}`);
     const shapeKey = str(st.shape, 'process');
@@ -228,6 +229,8 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
     const y = horizontal ? rect.y + (rect.h - h) / 2 : origin.y + step;
     els.push(V(label, resolveShape(shapeKey, 'process') + fill, x, y, w, h));
     byIndex.push(els.length - 1);
+    const id = str(st.id, '');
+    if (id !== '' && !idToStep.has(id)) idToStep.set(id, i);
   });
 
   // 泳道容器:标题 + 大背景(先算尺寸再插入到头部,保证渲染在最底层)
@@ -248,27 +251,83 @@ function layoutFlow(slots: ChartSlots, direction: ChartDirection): ChartElement[
     });
   }
 
-  const laneOf = (i: number): number => {
-    const raw = steps[i]?.lane;
-    return typeof raw === 'number' ? Math.max(0, Math.min(lanes.length - 1, raw)) : 0;
+  // 流程名(校验要求 title,之前被丢弃;画在左上角,不压泳道容器)
+  const title = str(slots.title, '');
+  if (title !== '') {
+    const titleW = lanes.length > 0 ? Math.min(lanes.length * 340 - 20, 460) : 300;
+    els.push(V(title, `${resolveShape('text', 'text')}${FILL_BLUE}fontSize=14;align=left;`, 60, horizontal ? 30 : 0, titleW, 26));
+  }
+
+  const rectOf = (stepIdx: number): { x: number; y: number; w: number; h: number } => {
+    const el = els[byIndex[stepIdx]];
+    return { x: el.x ?? 0, y: el.y ?? 0, w: el.w ?? 160, h: el.h ?? 60 };
   };
-  for (let i = 0; i < byIndex.length - 1; i++) {
-    const arrow = str(steps[i + 1]?.arrow, '');
-    const dashed = steps[i + 1]?.dashed === true;
-    const crossLane = lanes.length > 0 && laneOf(i) !== laneOf(i + 1);
-    // 定向连接点:顺序连线沿流向出/入,不穿过节点;跨泳道从侧面走并虚线区分
-    const flow = horizontal
-      ? 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;'
-      : 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;';
-    const side = horizontal
-      ? 'exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;'
-      : 'exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;';
-    // 跨泳道用直线虚线:泳道间隔窄,正交路由会在沟里来回绕
-    const base = crossLane ? 'edgeStyle=none;rounded=0;' : 'edgeStyle=orthogonalEdgeStyle;rounded=1;';
-    const style = base + 'html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' +
-      (crossLane ? side : flow) +
-      (dashed || crossLane ? 'dashed=1;dashPattern=6 4;' : '');
-    els.push(E(byIndex[i], byIndex[i + 1], arrow, style));
+
+  /**
+   * 规范流程图连线:全部正交路由(edgeStyle=orthogonalEdgeStyle),
+   * 按两端几何关系选定向连接点——顺流沿流向出/入;回退从侧面绕行;
+   * 跨泳道走侧面一跃,不再用斜直线。虚线仅表示语义(dashed:true)。
+   */
+  const flowEdgeStyle = (fromIdx: number, toIdx: number, dashed: boolean): string => {
+    const A = rectOf(fromIdx);
+    const B = rectOf(toIdx);
+    const acx = A.x + A.w / 2;
+    const acy = A.y + A.h / 2;
+    const bcx = B.x + B.w / 2;
+    const bcy = B.y + B.h / 2;
+    let conn: string;
+    if (fromIdx === toIdx) {
+      // 自环:右侧出 → 底部入
+      conn = 'exitX=1;exitY=0.5;entryX=0.5;entryY=1;';
+    } else if (horizontal) {
+      const sameRow = Math.abs(bcy - acy) < (A.h + B.h) * 0.6;
+      if (sameRow && bcx >= acx) {
+        conn = 'exitX=1;exitY=0.5;entryX=0;entryY=0.5;'; // 顺流:右出左入
+      } else if (sameRow) {
+        conn = 'exitX=0.5;exitY=1;entryX=0.5;entryY=1;'; // 回退:底部绕行
+      } else {
+        conn = bcy > acy
+          ? 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;' // 下方泳道
+          : 'exitX=0.5;exitY=0;entryX=0.5;entryY=1;'; // 上方泳道
+      }
+    } else {
+      const sameCol = Math.abs(bcx - acx) < (A.w + B.w) * 0.6;
+      if (sameCol && bcy >= acy) {
+        conn = 'exitX=0.5;exitY=1;entryX=0.5;entryY=0;'; // 顺流:下出上入
+      } else if (sameCol) {
+        conn = 'exitX=1;exitY=0.5;entryX=1;entryY=0.5;'; // 回退:右侧绕行
+      } else {
+        conn = bcx > acx
+          ? 'exitX=1;exitY=0.5;entryX=0;entryY=0.5;' // 右侧泳道
+          : 'exitX=0;exitY=0.5;entryX=1;entryY=0.5;'; // 左侧泳道
+      }
+    }
+    return (
+      'edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=1.5;strokeColor=#6C8EBF;' +
+      conn +
+      (dashed ? 'dashed=1;dashPattern=6 4;' : '')
+    );
+  };
+
+  // 连线:给出 edges 时完全由模型决定(顺序/分支/回退),否则退化为顺序链
+  const explicitEdges = Array.isArray(slots.edges) ? (slots.edges as Array<Record<string, unknown>>) : [];
+  let drawn = 0;
+  if (explicitEdges.length > 0) {
+    for (const e of explicitEdges.slice(0, 20)) {
+      const fi = idToStep.get(str(e.from));
+      const ti = idToStep.get(str(e.to));
+      if (fi == null || ti == null) continue; // 悬空引用:validate 已拦,这里兜底跳过
+      els.push(E(byIndex[fi], byIndex[ti], str(e.label), flowEdgeStyle(fi, ti, e.dashed === true)));
+      drawn++;
+    }
+  }
+  if (drawn === 0) {
+    // 无显式 edges(或全部悬空):按步骤顺序连线
+    for (let i = 0; i < byIndex.length - 1; i++) {
+      const arrow = str(steps[i + 1]?.arrow, '');
+      const dashed = steps[i + 1]?.dashed === true;
+      els.push(E(byIndex[i], byIndex[i + 1], arrow, flowEdgeStyle(i, i + 1, dashed)));
+    }
   }
   return els;
 }

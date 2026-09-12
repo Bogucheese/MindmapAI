@@ -231,7 +231,7 @@ export function buildAutotuneUserPrompt(
 /* ==================== 图表生成(12 种思考图) ==================== */
 
 export function buildChartSystemPrompt(meta: ChartTypeMeta): string {
-  const shapeCatalog = meta.id === 'flow' ? `\n可用形状部件(槽位 "shape" 字段取其 key):${SHAPE_CATALOG_PROMPT}。按语义选择:开始/结束用 terminator,判断用 decision,输入输出用 data,存档用 document,存储用 database,准备用 preparation,人工输入用 manualInput,人工操作用 manualOperation,延迟用 delay,展示用 display,普通步骤用 process。充分但合理地使用部件。` : '';
+  const shapeCatalog = meta.id === 'flow' ? `\n可用形状部件(槽位 "shape" 字段取其 key):${SHAPE_CATALOG_PROMPT}。按语义选择:开始/结束用 terminator,判断用 decision,输入输出用 data,存档用 document,存储用 database,准备用 preparation,人工输入用 manualInput,人工操作用 manualOperation,延迟用 delay,展示用 display,普通步骤用 process。充分但合理地使用部件。\n分支与回退务必用 edges 表达:decision 的每个分支一条带标注的 edge(如 "是"/"否");需要回到前序步骤时也画一条 edge(from 当前步骤,to 目标步骤)。只有纯线性流程才省略 edges。` : '';
   const arrowSemantics =
     meta.id === 'flow' || meta.id === 'multiFlow' || meta.id === 'bridge'
       ? '- Arrow semantics: arrows express sequence or cause-effect ONLY. A part-whole / membership relation is expressed by grouping or hierarchy, never by an arrow; a contrast is expressed by parallel placement, never by an arrow.'

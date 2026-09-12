@@ -14,12 +14,12 @@
 
 import {
   chatWithTools,
-  transportGet,
   type ToolLoopMessage,
   type ToolSpec,
 } from '../ai/client';
 import type { MindmapTree } from '../ai/schema';
 import { t } from '../i18n/keys';
+import { fetchWithRelay } from './tools';
 import { dedupeSiblingLabels, findStructureIssues } from './validate';
 import type { AgentEmitter } from './events';
 import type { AiProviderSettings } from '../settings/settings';
@@ -405,7 +405,7 @@ export async function runAgentGeneration(
           } else {
             fetchCount += 1;
           onEvent?.({ type: 'tool', name: call.name, detail: url });
-          const fetched = await transportGet(url, timeoutMs);
+          const fetched = await fetchWithRelay(url, timeoutMs);
           const text = fetched.ok && fetched.status === 200
             ? fetched.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
             : `fetch failed (${fetched.ok ? `HTTP ${fetched.status}` : fetched.kind})`;

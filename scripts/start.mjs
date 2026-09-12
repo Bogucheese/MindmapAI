@@ -98,16 +98,67 @@ function openBrowser(url) {
   cmd.unref();
 }
 
+// ---------- 内置抓取中继：GET /mm-fetch-proxy?url=<目标> ----------
+//
+// 浏览器模式下链接抓取受 CORS 限制（桌面版走主进程抓取不受限）。此端点由
+// 本机服务端发起请求（无 CORS），把上游响应体原样回传给前端解析。前端在
+// 直连失败时自动尝试，无需在设置里配置抓取代理。
+// 仅面向本机开发使用：无鉴权，勿绑定到公网地址。
+const RELAY_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+const RELAY_TIMEOUT_MS = 30000;
+const RELAY_MAX_BYTES = 3 * 1024 * 1024; // 与前端 MAX_HTML_BYTES 一致
+
+function handleFetchRelay(req, res, searchParams) {
+  if (req.method !== 'GET') {
+    res.writeHead(405).end();
+    return;
+  }
+  const target = searchParams.get('url') ?? '';
+  if (!/^https?:\/\//i.test(target)) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('usage: GET /mm-fetch-proxy?url=<http(s) target>');
+    return;
+  }
+  fetch(target, {
+    headers: {
+      'User-Agent': RELAY_UA,
+      Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+  })
+    .then(async (upstream) => {
+      const body = (await upstream.text()).slice(0, RELAY_MAX_BYTES);
+      // 上游状态码透传（4xx/5xx 由前端按"不触发代理"逻辑处理）
+      res.writeHead(upstream.status, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(body);
+    })
+    .catch((err) => {
+      res.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(`relay fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+}
+
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405).end();
     return;
   }
-  let urlPath;
+  let parsedUrl;
   try {
-    urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    parsedUrl = new URL(req.url, 'http://localhost');
   } catch {
     res.writeHead(400).end();
+    return;
+  }
+  const urlPath = decodeURIComponent(parsedUrl.pathname);
+  if (urlPath === '/mm-fetch-proxy') {
+    handleFetchRelay(req, res, parsedUrl.searchParams);
     return;
   }
   let file = path.resolve(WEBAPP_ROOT, `.${path.posix.normalize(urlPath)}`);
@@ -138,5 +189,6 @@ server.listen(PORT, HOST, () => {
   const url = `http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/`;
   log(`MindmapAI 编辑器已就绪：${url}  （Ctrl+C 停止）`);
   log('首次使用请配置 AI：菜单 AI → 设置…（填入模型厂商端点与 API Key）');
+  log('链接抓取已内置本机中继 /mm-fetch-proxy（浏览器模式自动使用，无需配置代理）');
   if (OPEN) openBrowser(url);
 });

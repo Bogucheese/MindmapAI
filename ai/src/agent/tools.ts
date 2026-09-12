@@ -10,12 +10,13 @@
  * 复用同一套分块逻辑。
  *
  * 链接抓取：GitHub 链接统一转 raw.githubusercontent.com（CORS 开放，
- * 浏览器模式也能直连）；其余 URL 浏览器模式受 CORS 限制，桌面端经
- * mmAiFetch 主进程通道抓取。HTML 用 DOMParser 做轻量正文提取，
- * 标题转 Markdown 标记行以喂给分块器。
+ * 浏览器模式也能直连）；其余 URL 按链尝试 直连 → 同源抓取中继（start.mjs
+ * 内置 /mm-fetch-proxy，服务端 fetch 无 CORS，仅浏览器模式）→ 公共抓取代理
+ * （默认 r.jina.ai，可在设置中替换/禁用）；桌面版直连即主进程抓取，无 CORS。
+ * HTML 用 DOMParser 做轻量正文提取，标题转 Markdown 标记行以喂给分块器。
  */
 
-import { transportGet } from '../ai/client';
+import { hasElectronBridge, transportGet, type TransportResult } from '../ai/client';
 import type { SourceChunk, SourceDoc } from './types';
 
 export const MAX_CHUNK_CHARS = 4000;
@@ -237,7 +238,45 @@ const MAX_HTML_BYTES = 3 * 1024 * 1024;
 /** 正文低于该字符数视为"抓得太薄",触发公共抓取代理兜底 */
 const MIN_TEXT_CHARS = 300;
 
-/** 默认公共抓取代理:返回页面的 Markdown 正文(含标题),可绕过
+/** start.mjs 内置同源抓取中继的路径（服务端 fetch,无 CORS） */
+export const LOCAL_RELAY_PATH = '/mm-fetch-proxy';
+
+/**
+ * 浏览器模式下的同源抓取中继源点（空串 = 不可用）：桌面版走主进程抓取
+ * 无需中继；node 环境（单测）无 location。可用 buildSourceDocFromUrl /
+ * fetchWithRelay 的 relayBase 参数覆盖（单测注入）。
+ */
+function defaultRelayBase(): string {
+  if (hasElectronBridge()) return '';
+  if (typeof location === 'undefined') return '';
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return '';
+  return location.origin;
+}
+
+/** relayBase(源点,如 http://127.0.0.1:8000) → 中继请求 URL */
+function relayFetchUrl(relayBase: string, targetUrl: string): string {
+  return `${relayBase}${LOCAL_RELAY_PATH}?url=${encodeURIComponent(targetUrl)}`;
+}
+
+/**
+ * Agent fetch_url 工具用的抓取:直连失败(浏览器 CORS 限制)或返回 HTTP
+ * 错误时,自动回退到同源抓取中继(浏览器模式);桌面版主进程抓取不受影响。
+ * 中继也不成功时原样返回直连结果(保留原始错误语义)。
+ */
+export async function fetchWithRelay(
+  url: string,
+  timeoutMs: number,
+  relayBase?: string
+): Promise<TransportResult> {
+  const direct = await transportGet(url, timeoutMs);
+  if (direct.ok && direct.status < 400) return direct;
+  const relay = relayBase !== undefined ? relayBase : defaultRelayBase();
+  if (relay === '') return direct;
+  const relayed = await transportGet(relayFetchUrl(relay, url), timeoutMs);
+  return relayed.ok && relayed.status < 400 && relayed.body.trim() !== '' ? relayed : direct;
+}
+
+/** 公共抓取代理:返回页面的 Markdown 正文(含标题),可绕过
  *  大多数反爬与 CORS 限制。免费但有限流;URL 会发送给第三方服务。
  *  可在设置中替换为自建代理(境内建议),留空禁用。 */
 
@@ -270,7 +309,8 @@ async function fetchWithFallback(
   targetUrl: string,
   timeoutMs: number,
   allowProxy: boolean,
-  proxyPrefix: string
+  proxyPrefix: string,
+  relayBase: string
 ): Promise<FetchedBody> {
   const direct = await transportGet(targetUrl, timeoutMs);
   const directUsable =
@@ -295,7 +335,15 @@ async function fetchWithFallback(
       finalUrl: targetUrl,
     };
   }
-  // 兜底:公共抓取代理(返回 Markdown 正文)
+  // 兜底 1:同源抓取中继(start.mjs 内置,服务端 fetch 无 CORS;
+  // 原样回传上游响应体,与直连同路处理)
+  if (relayBase !== '') {
+    const relayed = await transportGet(relayFetchUrl(relayBase, targetUrl), timeoutMs);
+    if (relayed.ok && relayed.status < 400 && relayed.body.trim().length >= MIN_TEXT_CHARS) {
+      return { ok: true, body: relayed.body, via: 'direct', finalUrl: targetUrl };
+    }
+  }
+  // 兜底 2:公共抓取代理(返回 Markdown 正文)
   const proxied = await transportGet(proxyPrefix + targetUrl, timeoutMs + 15000);
   if (proxied.ok && proxied.status < 400 && proxied.body.trim().length >= MIN_TEXT_CHARS / 2) {
     return { ok: true, body: proxied.body, via: 'proxy', finalUrl: proxyPrefix + targetUrl };
@@ -316,14 +364,17 @@ async function fetchWithFallback(
 /**
  * 抓取链接 → SourceDoc。抓取链:
  *   1. GitHub 链接转 raw 直连(CORS 开放);
- *   2. 其余 URL 直连(浏览器受 CORS 限制,桌面版无碍);
- *   3. 直连失败或正文过薄 → r.jina.ai 公共代理(返回 Markdown 正文)。
+ *   2. 其余 URL 直连(桌面版走主进程无 CORS;浏览器受 CORS 限制);
+ *   3. 直连失败或正文过薄 → 同源抓取中继(start.mjs 内置,仅浏览器模式);
+ *   4. 中继也不可用 → 公共抓取代理 r.jina.ai(返回 Markdown 正文)。
  * B 站视频页特判:合并 view API 元数据(标题/简介,字幕不在抓取范围)。
  */
 export async function buildSourceDocFromUrl(
   url: string,
   timeoutMs: number = FETCH_TIMEOUT_MS,
-  proxyPrefix: string = 'https://r.jina.ai/'
+  proxyPrefix: string = 'https://r.jina.ai/',
+  /** 同源抓取中继源点(如 http://127.0.0.1:8000);缺省按运行环境自动判定(浏览器 → start.mjs 内置中继) */
+  relayBase?: string
 ): Promise<FetchDocResult> {
   const trimmed = url.trim();
   const bvid = bilibiliBvid(trimmed);
@@ -332,7 +383,8 @@ export async function buildSourceDocFromUrl(
   const isMarkdown = raw != null || /\.md($|[?#])/i.test(finalUrl);
 
   const allowProxy = proxyPrefix.trim() !== '';
-  const fetched = await fetchWithFallback(finalUrl, timeoutMs, allowProxy, proxyPrefix.trim());
+  const relay = relayBase !== undefined ? relayBase : defaultRelayBase();
+  const fetched = await fetchWithFallback(finalUrl, timeoutMs, allowProxy, proxyPrefix.trim(), relay);
   if (!fetched.ok) {
     return { ok: false, kind: fetched.kind ?? 'http', status: fetched.status, detail: fetched.detail ?? '' };
   }
@@ -357,10 +409,20 @@ export async function buildSourceDocFromUrl(
     text = extracted.text;
   }
 
-  // B 站视频:合并 view API 元数据(标题/简介/UP 主)
+  // B 站视频:合并 view API 元数据(标题/简介/UP 主)。
+  // API 按链尝试:直连(桌面版主进程无 CORS;浏览器 CORS 常拦截)→
+  // 同源中继(原样透传 JSON)→ 公共代理
   if (bvid != null) {
-    const apiRes = await transportGet(`${proxyPrefix}https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, timeoutMs);
-    if (apiRes.ok && apiRes.status < 400) {
+    const viewApiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`;
+    const apiCandidates = [viewApiUrl];
+    if (relay !== '') apiCandidates.push(relayFetchUrl(relay, viewApiUrl));
+    if (proxyPrefix.trim() !== '') apiCandidates.push(`${proxyPrefix}${viewApiUrl}`);
+    let apiRes: Awaited<ReturnType<typeof transportGet>> | null = null;
+    for (const candidate of apiCandidates) {
+      apiRes = await transportGet(candidate, timeoutMs);
+      if (apiRes.ok && apiRes.status < 400) break;
+    }
+    if (apiRes != null && apiRes.ok && apiRes.status < 400) {
       try {
         const json = JSON.parse(apiRes.body) as { data?: { title?: string; desc?: string; owner?: { name?: string } } };
         const vTitle = json.data?.title != null ? String(json.data.title) : '';

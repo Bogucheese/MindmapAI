@@ -30,6 +30,54 @@
 - 命令框 dead bug：单例浅拷贝导致 onCommand 绑定丢失（已改为存 handle 本体）
 - 命令框支持思考图：editChart 槽位修正 + 重建
 
+## 本轮修复：流程图大改 + 图表 Agent 模式开放
+
+- **问题**（用户反馈）：流程图"做的太烂、连线一点也不规范"；问图表有没有
+  Agent 模式。测试链接 runoob ai-terminology。
+- **根因**：① flow 槽位协议只能表达线性链（步骤 i→i+1），decision 分支/回退
+  无法表达，示例的 arrow 语义还是错的；② 跨泳道连线用斜直线
+  （edgeStyle=none 虚线）；③ title 校验必需但布局压根不画；④ **图表类型下
+  Agent 复选框被 UI 隐藏**（runAgentChart 早就存在且已接线，用户根本看不到）。
+- **修复**：
+  - 槽位协议加步骤 `id` + 显式 `edges`（from/to/label/dashed），给出时连线
+    完全由模型决定；省略时退化为顺序链（向后兼容）。校验：id 唯一、edges
+    必须引用已渲染步骤（Agent 3 次提交预算内可自修）。
+  - `layoutFlow` 全部正交路由（orthogonalEdgeStyle），按两端几何关系选连接
+    点：顺流沿流向、回退侧面绕行、跨泳道侧向一跃；虚线仅表达语义。title
+    渲染为左上角文本。
+  - 对话框：图表类型（gallery 除外）显示 Agent 复选框（标签去掉"仅导图"）。
+  - mock 服务器支持 chart（流程图→带分支的流程槽位）与 agent-chart
+    （tool_calls submit_chart 一次成环）阶段；修正 stage 正则匹配连字符。
+- **测试**：tsc 零错误；vitest 18 文件 144 全绿（新增显式 edges 布局×4、
+  校验×3，更新跨泳道断言为全正交实线）。
+- **E2E**（IAB + dev-mock-server + 真实 relay 抓取 runoob 链接）：
+  - 单发流程图 ✓：14 单元格（3 泳道+5 步骤+1 标题+5 边），5 边全正交，
+    连接点方向正确（跨泳道侧向、回退右侧绕行、分支 是/否 标注、否 虚线）；
+  - **Agent 模式（图表）✓**：勾选入口现在可见；面板事件
+    distill 4 要点 → "Agent is designing the chart..." →
+    submit_chart {"accepted":true,"nodes":7} → ✓ Done 流程图 · 7 nodes。
+  - 注：本会话模型无图像输入，截图无法目检，验收基于画布结构断言
+    （样式串/连接点/坐标），正交样式下 drawio 不可能渲染出斜线。
+
+## 本轮修复：浏览器模式链接抓取内置中继
+
+- **问题**（用户 F12 日志）：`runoob` 直连被 CORS 拦截 → `r.jina.ai` 兜底超时
+  → 页面抓取失败。此前解法（手动起 8788 本地代理 + 设置里填前缀）需手动配置。
+- **修复**：`scripts/start.mjs` 内置同源抓取中继 `GET /mm-fetch-proxy?url=<目标>`
+  （服务端 fetch 无 CORS，原样透传响应体与状态码，30s 超时/3MB 上限，与前端
+  MAX_HTML_BYTES 一致）；前端抓取链改为 直连 → 同源中继（浏览器模式自动,
+  `tools.ts` `defaultRelayBase`）→ 公共代理（r.jina.ai，设置里可替换/禁用）。
+  Agent 循环的 `fetch_url` 工具同样接入（`fetchWithRelay`）。B 站 view API
+  元数据抓取也改为 直连→中继→代理 链。
+- **单测**：tools-fetch.test.ts 新增 5 个用例（中继兜底/直连命中不触发中继/
+  中继 404 落到公共代理/fetchWithRelay 成与败）。tsc 零错误，18 文件 136 全绿。
+- **E2E 验证**：真实浏览器打开 start.mjs 服务，页面上下文直连 runoob 复现
+  `Failed to fetch`（与用户日志一致），中继 200 返回 120KB 正文、标题正确
+  解析为「Java 方法 | 菜鸟教程」。
+- **注意**：改动 ai/src 后需 `npm run build` 重出 bundle（webapp/ 为生成物不入库）；
+  i18n 提示（aiFetchHint/aiFetchBrowserHint/aiProxyHint）已同步 patches/ 与
+  已生成的 dia.txt/dia_zh.txt。
+
 ## 自检记录（最近一次全量测试）
 
 - **静态**：tsc 零错误；vitest 131+2=133 全绿（新增泳道越界/连线样式回归测试）；
@@ -73,10 +121,10 @@
 
 - `unload Permissions policy violation` / `apis.google.com`、
   `dropbox.com dropins.js` 超时：drawio 自带资源,国内不可达,仅噪音
-- **CORS 拦截 runoob + r.jina.ai 超时**：浏览器模式链接抓取的真实限制。
-  解法已验证 = 运行 `node ai/tools/local-fetch-proxy.mjs` 并在
-  AI→设置→抓取代理 填 `http://127.0.0.1:8788/`（或直接用桌面版,主进程
-  抓取无 CORS）
+- **CORS 拦截 runoob + r.jina.ai 超时**：已修复——start.mjs 内置同源中继
+  `/mm-fetch-proxy`，浏览器模式自动兜底，无需手动起代理（见上方
+  「本轮修复」）；手动方案（`ai/tools/local-fetch-proxy.mjs` + 设置填
+  `http://127.0.0.1:8788/`）保留给其它托管方式
 - 待办候选：默认公共代理 fallback 超时缩短/更早提示；index.html 移除
   Google/Dropbox 脚本加速国内首屏
 

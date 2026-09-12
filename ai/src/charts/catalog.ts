@@ -70,8 +70,8 @@ export const CHART_TYPES: Record<ChartTypeId, ChartTypeMeta> = {
     name: '流程图',
     definition: '展示事物的演变,说明事情发生的顺序和过程,通过连续性分析内在逻辑。',
     pros: '培养程序性思维和统筹能力;步骤/判断/输入输出等部件可按语义选用。',
-    slots: '{"title": "流程名", "lanes": ["角色/阶段1", "角色/阶段2"](可选,给出时每个步骤须带 "lane": 从0开始的泳道序号), "steps": [{"label": "步骤", "shape": "process|decision|data|terminator|document|database|preparation|manualInput|manualOperation|delay|display|triangle|note", "lane": 0, "dashed": false(该步的进入连线用虚线), "arrow": "到下一步的连线标注(可省略)"}]}(steps 4-10 个;第一个/最后一个建议 shape=terminator;判断用 decision 且下一步用 arrow 标注分支条件;涉及多个角色/阶段时给出 lanes 并把步骤分到泳道)',
-    example: '{"title":"需求交付","lanes":["产品","研发","测试"],"steps":[{"label":"开始","shape":"terminator","lane":0},{"label":"写需求","shape":"document","lane":0},{"label":"开发","shape":"process","lane":1},{"label":"通过?","shape":"decision","lane":2,"arrow":"是"},{"label":"回归验证","shape":"process","lane":2,"dashed":true,"arrow":"否"}]}',
+    slots: '{"title": "流程名", "lanes": ["角色/阶段1", "角色/阶段2"](可选), "steps": [{"id": "s1", "label": "步骤", "shape": "process|decision|data|terminator|document|database|preparation|manualInput|manualOperation|delay|display|triangle|note", "lane": 0}], "edges": [{"from": "s1", "to": "s2", "label": "标注(如 是/否,可省略)", "dashed": false}]}(steps 4-10 个,每个给唯一 id;第一个/最后一个建议 terminator;判断步骤用 decision。edges 可选:给出时连线完全由 edges 决定——顺序、分支、回退都各画一条,decision 的每个分支必须是一条带标注的 edge;省略 edges 时按 steps 顺序依次连线,该步可用 "arrow"(连线标注)/"dashed"(虚线) 修饰;涉及多个角色/阶段时给出 lanes 并把步骤分到泳道 "lane": 从0开始的泳道序号)',
+    example: '{"title":"需求交付","lanes":["产品","研发","测试"],"steps":[{"id":"s1","label":"开始","shape":"terminator","lane":0},{"id":"s2","label":"写需求","shape":"document","lane":0},{"id":"s3","label":"开发","shape":"process","lane":1},{"id":"s4","label":"通过?","shape":"decision","lane":2},{"id":"s5","label":"上线","shape":"terminator","lane":2}],"edges":[{"from":"s1","to":"s2"},{"from":"s2","to":"s3"},{"from":"s3","to":"s4"},{"from":"s4","to":"s5","label":"是"},{"from":"s4","to":"s3","label":"否","dashed":true}]}',
   },
   multiFlow: {
     id: 'multiFlow',

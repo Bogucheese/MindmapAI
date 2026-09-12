@@ -71,6 +71,29 @@ export function validateChartSlots(type: ChartTypeId, slots: ChartSlots): string
     }
     // 超上限不报错:layout 层按 max 截断(模型偶尔多给一两条属正常)
   }
+  if (type === 'flow') {
+    // 显式连线:步骤 id 唯一;edges 只引用已渲染(前 10 个)步骤的 id
+    const steps = strArr(slots.steps).slice(0, 10);
+    const ids = new Set<string>();
+    for (const s of steps) {
+      const o = s as Record<string, unknown> | null;
+      if (o == null || typeof o !== 'object') continue;
+      const id = typeof o.id === 'string' ? o.id.trim() : '';
+      if (id === '') continue;
+      if (ids.has(id)) return `步骤 id "${id}" 重复。`;
+      ids.add(id);
+    }
+    if (Array.isArray(slots.edges)) {
+      for (const e of slots.edges as unknown[]) {
+        const o = e as Record<string, unknown> | null;
+        if (o == null || typeof o !== 'object' || Array.isArray(o)) return 'edges 项必须是对象。';
+        const from = typeof o.from === 'string' ? o.from.trim() : '';
+        const to = typeof o.to === 'string' ? o.to.trim() : '';
+        if (from === '' || !ids.has(from)) return `edges 引用了不存在的步骤 id "${from}"。`;
+        if (to === '' || !ids.has(to)) return `edges 引用了不存在的步骤 id "${to}"。`;
+      }
+    }
+  }
   return null;
 }
 

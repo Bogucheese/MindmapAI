@@ -64,7 +64,8 @@ ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" npm install
 MM_WEBAPP_DIR=$(pwd)/../webapp/src/main/webapp npm start
 # 加 --remote-debugging-port=9222 --disable-gpu 可用 CDP 驱动自动化验证
 
-# ⑤ 本地抓取代理（网页链接模式的可选组件）
+# ⑤ 本地抓取代理（仅当 webapp 不经 scripts/start.mjs 托管时才需要——
+#    start.mjs 已内置同源抓取中继 /mm-fetch-proxy，浏览器模式自动使用）
 node ai/tools/local-fetch-proxy.mjs [端口]
 # 设置 → 抓取代理 填 http://127.0.0.1:8788/ 即可
 ```

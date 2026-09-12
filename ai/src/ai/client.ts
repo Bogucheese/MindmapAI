@@ -19,13 +19,13 @@ function chatCompletionsUrl(baseUrl: string): string {
 }
 
 /** Electron 下走主进程 IPC（渲染层 CSP connect-src 'self' 禁外联） */
-function hasElectronBridge(): boolean {
+export function hasElectronBridge(): boolean {
   if (typeof window === 'undefined') return false;
   const w = window as unknown as { electron?: { request?: unknown } };
   return typeof w.electron?.request === 'function';
 }
 
-type TransportResult =
+export type TransportResult =
   | { ok: true; status: number; body: string }
   | { ok: false; kind: 'network' | 'timeout'; detail: string };
 

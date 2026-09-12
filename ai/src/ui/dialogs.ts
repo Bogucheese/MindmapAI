@@ -116,7 +116,10 @@ export function showSettingsDialog(ui: DrawioPluginApi): void {
   proxyHint.style.color = COLOR_NOTICE;
   mxUtils.write(
     proxyHint,
-    t('aiProxyHint', 'Used when a page blocks browser fetching. The URL is sent to the proxy service.')
+    t(
+      'aiProxyHint',
+      'Used when a page blocks browser fetching and the built-in local relay (start.sh/start.cmd) is unavailable. The URL is sent to the proxy service.'
+    )
   );
   table.appendChild(proxyHint);
 
@@ -308,7 +311,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   container.appendChild(table);
 
   // 图表类型:思维导图(现有) + 12 种思考图
-  // Agent 模式:模型用工具自主装配导图(仅思维导图;更慢,实验性)
+  // Agent 模式:模型用工具自主装配(导图逐个放节点;思考图提交槽位协议)
   const agentRow = document.createElement('div');
   agentRow.style.gridColumn = '1 / span 2';
   agentRow.style.display = 'inline-flex';
@@ -319,7 +322,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   agentInput.checked = prefs.agentMode;
   const agentLabel = document.createElement('span');
   agentLabel.style.fontSize = '10pt';
-  mxUtils.write(agentLabel, t('aiAgentMode', 'Agent mode: the model assembles the map itself with tools (mind map only, slower)'));
+  mxUtils.write(agentLabel, t('aiAgentMode', 'Agent mode: the model assembles the chart itself with tools (slower, experimental)'));
   agentRow.appendChild(agentInput);
   agentRow.appendChild(agentLabel);
   table.appendChild(agentRow);
@@ -359,7 +362,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     nodesInput.style.display = display;
     layoutLabel.style.display = display;
     layoutSelect.style.display = display;
-    agentRow.style.display = isChart ? 'none' : '';
+    agentRow.style.display = chartSelect.value === 'gallery' ? 'none' : '';
     autoRow.style.display = isChart ? 'none' : '';
     const dirVisible = isChart && DIRECTION_TYPES.indexOf(chartSelect.value) >= 0;
     directionLabel.style.display = dirVisible ? '' : 'none';

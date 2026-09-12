@@ -110,9 +110,29 @@ const AUTOTUNE = {
   reason: '来源 5 节、主题集中，按要点密度选择。',
 };
 
+// 图表阶段(流程图):跨泳道 + decision 分支 + 回退 edge,覆盖显式 edges 布局路径
+const FLOW_SLOTS = {
+  title: 'AI Agent 工作流程',
+  lanes: ['用户', 'Agent', '工具'],
+  steps: [
+    { id: 's1', label: '提出目标', shape: 'terminator', lane: 0 },
+    { id: 's2', label: '规划任务', shape: 'process', lane: 1 },
+    { id: 's3', label: '调用工具', shape: 'process', lane: 2 },
+    { id: 's4', label: '目标达成?', shape: 'decision', lane: 1 },
+    { id: 's5', label: '输出结果', shape: 'terminator', lane: 1 },
+  ],
+  edges: [
+    { from: 's1', to: 's2' },
+    { from: 's2', to: 's3' },
+    { from: 's3', to: 's4' },
+    { from: 's4', to: 's5', label: '是' },
+    { from: 's4', to: 's2', label: '否', dashed: true },
+  ],
+};
+
 function stageOf(body) {
   const sys = (body.messages || []).find((m) => m.role === 'system');
-  const m = typeof sys?.content === 'string' ? sys.content.match(/\[MM-STAGE:(\w+)\]/) : null;
+  const m = typeof sys?.content === 'string' ? sys.content.match(/\[MM-STAGE:([\w-]+)\]/) : null;
   return m != null ? m[1] : null;
 }
 
@@ -142,6 +162,7 @@ const server = createServer((req, res) => {
     console.log('[mock] stage=%s model=%s messages=%d', stage ?? 'topic', body.model, (body.messages || []).length);
 
     let content;
+    let toolCalls = null;
     if (stage === 'distill') {
       content = JSON.stringify(DISTILL_NOTES);
     } else if (stage === 'autotune') {
@@ -153,17 +174,34 @@ const server = createServer((req, res) => {
       content = JSON.stringify(forceRevise && critiqueCalls % 2 === 1 ? CRITIQUE_REVISE : CRITIQUE_PASS);
     } else if (stage === 'expand') {
       content = JSON.stringify(EXPAND_CHILDREN);
+    } else if (stage === 'chart') {
+      const sys = (body.messages || []).find((m) => m.role === 'system');
+      content = typeof sys?.content === 'string' && sys.content.includes('流程图')
+        ? JSON.stringify(FLOW_SLOTS)
+        : JSON.stringify(TREE);
+    } else if (stage === 'agent-chart') {
+      // Agent 模式(思考图):直接以 tool_calls 提交槽位,一次成环
+      content = '';
+      toolCalls = [
+        {
+          id: 'mock-submit-1',
+          type: 'function',
+          function: { name: 'submit_chart', arguments: JSON.stringify({ slots: FLOW_SLOTS }) },
+        },
+      ];
     } else {
       content = JSON.stringify(TREE);
     }
 
+    const message = { role: 'assistant', content };
+    if (toolCalls != null) message.tool_calls = toolCalls;
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(
       JSON.stringify({
         id: 'mock-' + Date.now(),
         object: 'chat.completion',
         model: body.model || 'mock-model',
-        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+        choices: [{ index: 0, message, finish_reason: 'stop' }],
       })
     );
   });

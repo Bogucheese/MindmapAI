@@ -80,7 +80,7 @@ export interface GenerationPrefs {
   sourceMode: 'topic' | 'paste' | 'link';
   /** 来源模式：AI 按要点推荐 depth/maxChildren/maxNodes（手动值兜底） */
   autoParams: boolean;
-  /** Agent 模式：模型用工具自主装配导图（仅思维导图；更慢，实验性） */
+  /** Agent 模式：模型用工具自主装配(导图逐个放节点;思考图提交槽位,更慢,实验性) */
   agentMode: boolean;
   depth: number;
   maxChildren: number;

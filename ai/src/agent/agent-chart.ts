@@ -7,7 +7,8 @@
  * 这与导图 Agent(add_node 逐个放)是同一控制流哲学:决策在模型,几何在代码。
  */
 
-import { chatWithJsonFallback, chatWithTools, transportGet, type ToolLoopMessage, type ToolSpec } from '../ai/client';
+import { chatWithJsonFallback, chatWithTools, type ToolLoopMessage, type ToolSpec } from '../ai/client';
+import { fetchWithRelay } from './tools';
 import type { ChartTypeId } from '../charts/catalog';
 import { CHART_TYPES } from '../charts/catalog';
 import { layoutChart, type ChartElement, type ChartSlots, type ChartDirection } from '../charts/layout';
@@ -210,7 +211,7 @@ export async function runAgentChart(
         } else {
           fetchCount += 1;
           onEvent?.({ type: 'tool', name: call.name, detail: url });
-          const fetched = await transportGet(url, timeoutMs);
+          const fetched = await fetchWithRelay(url, timeoutMs);
           const text = fetched.ok && fetched.status === 200
             ? fetched.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 6000)
             : `fetch failed (${fetched.ok ? `HTTP ${fetched.status}` : fetched.kind})`;

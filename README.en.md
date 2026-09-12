@@ -35,7 +35,7 @@ MindmapAI injects AI generation capabilities into drawio as a plugin, and ships 
 
 ### AI mind map generation
 
-- **Three content sources**: topic only / pasted text / web link. Link mode auto-converts GitHub pages to raw URLs, parses Bilibili video metadata, and falls back gracefully (direct → custom proxy → public fetch proxies), with a zero-dependency [local fetch proxy](ai/tools/local-fetch-proxy.mjs) built in.
+- **Three content sources**: topic only / pasted text / web link. Link mode auto-converts GitHub pages to raw URLs, parses Bilibili video metadata, and falls back gracefully (direct → built-in local relay → custom/public fetch proxies). The relay works out of the box when launched via `start.sh`/`start.cmd`; for other hosting setups a zero-dependency [local fetch proxy](ai/tools/local-fetch-proxy.mjs) is available.
 - **Review pipeline**: distill → architect → auto-review; when any of the four quality dimensions scores too low, the map is automatically rebuilt once. Generation can be cancelled at any time.
 - **Agent side panel**: watch the agent work in real time — every distilled note with its verbatim quote, the section skeleton, four-dimension review scores with feedback, rebuild reasons, and per-chart progress (AI → Agent panel).
 - **Agent mode (experimental)**: hand the control flow to the model — it assembles the whole map or any thinking chart itself with real tools (read notes / fetch pages / place nodes one by one / self-check fixes) until it declares the result done (hard tool-call and node caps as a safety net).
