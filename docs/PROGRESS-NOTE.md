@@ -188,16 +188,30 @@
 - 待办候选：默认公共代理 fallback 超时缩短/更早提示；index.html 移除
   Google/Dropbox 脚本加速国内首屏
 
+## 今日收尾（2026-09-12）
+
+- **已推送**：`d1f539f`（流程图分支连线+全正交路由+图表 Agent 模式开放+
+  内置抓取中继）、`2a2675c`（文档转导图+总结建议+暗色面板+语言切换+
+  图表规模上限）。测试基线 21 文件 162 全绿。
+- **博客发布**：技术文章《把 drawio 二开成 AI 思维导图工具：架构设计与
+  踩坑实录》已上线 <https://lzhcodeblog.site/2026/09/12/drawio-mindmap-ai-secondary-development/>
+  （Hexo,~/projects/blog,deploy → Bogucheese.github.io main;3 张截图取自
+  docs/）。
+
 ## 待用户反馈 / 待办
 
-- **用户侧**：F12 控制台报错文本（上轮被截断未收到）；Agent 模式、画布比例、
-  grounding 放宽后的真实模型实测效果
+- **用户侧**：真实模型实测（DeepSeek key）——流程图分支 edges、文档导入
+  （真实 docx/pdf）、总结建议、暗色面板、语言切换的实际观感
 - **功能待办**：
-  - 跨会话记忆（Agent 记住风格偏好/纠正过的术语）
-  - 命令框对话多轮历史持久化（v1 每条指令独立，靠当前树携带上下文）
-  - Agent 命令实时上画布（现在是树修改完成后单事务重建+渐显）
+  - Markdown 双向编辑（路线图遗留）
+  - XMind / Freeplane / OPML 导入
   - macOS / Linux 打包、安装包代码签名
-  - XMind / Freeplane / OPML 导入、文档转导图（Markdown/Word/PDF）
+  - charts/validate 校验错误文案 i18n（英文界面提交失败提示仍是中文）
+  - PDF 提取升级:CMap/ToUnicode 解码（复杂编码中文 PDF 目前提取不了,
+    报错引导粘贴）
+  - 跨会话记忆（Agent 记住风格偏好/纠正过的术语）
+  - 命令框对话多轮历史持久化（v1 每条指令独立,靠当前树携带上下文）
+  - Agent 命令实时上画布（现在是树修改完成后单事务重建+渐显）
 - **环境**：gh CLI 在 `~/.local/bin/gh`（未登录）；SSH 已绑定 Bogucheese；
   npm 走 npmmirror；GitHub 直连不稳，clone 用 ghproxy 镜像参数
 
