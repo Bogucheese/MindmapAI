@@ -17,6 +17,7 @@
  */
 
 import { hasElectronBridge, transportGet, type TransportResult } from '../ai/client';
+import { t } from '../i18n/keys';
 import type { SourceChunk, SourceDoc } from './types';
 
 export const MAX_CHUNK_CHARS = 4000;
@@ -355,7 +356,7 @@ async function fetchWithFallback(
   return {
     ok: false,
     kind: 'http',
-    detail: `直连内容过薄且代理抓取失败(${proxied.ok ? `HTTP ${proxied.status}` : proxied.kind ?? '未知错误'})`,
+    detail: `${t('aiFetchThinProxyFail', 'direct fetch too thin and proxy failed')}(${proxied.ok ? `HTTP ${proxied.status}` : proxied.kind ?? 'unknown'})`,
     via: 'proxy',
     finalUrl: targetUrl,
   };

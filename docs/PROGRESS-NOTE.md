@@ -30,7 +30,67 @@
 - 命令框 dead bug：单例浅拷贝导致 onCommand 绑定丢失（已改为存 handle 本体）
 - 命令框支持思考图：editChart 槽位修正 + 重建
 
-## 本轮修复：流程图大改 + 图表 Agent 模式开放
+## 本轮修复：面板语言切换不刷新 + 图表类型英文名 + 图表统一规模上限
+
+- **① Agent 面板切语言不更新**（用户实测）：面板 DOM 只在构建时取一次
+  i18n。新增 `languageChanged` 监听（与主题同机制）：重取框架文案（live/
+  Clear/Send/placeholder/空态）并按事件历史重渲染卡片。E2E 模拟
+  zh→en 资源切换 + 事件派发，面板即时变英文 ✓。
+- **② 图表类型名/说明是中文常量**：catalog 的 meta.name 等是 prompt 专用
+  中文常量，界面层误直接展示。新增 `chartTypeName/chartTypeDesc`（i18n），
+  对话框下拉、说明行、面板事件名全部改走它们；12 个类型名 + 12 条说明入
+  中英资源（en: Circle Map/Flowchart/Org Chart…）。Label language 的「中文」
+  选项也 i18n 为 Chinese/中文。E2E 英文界面下拉全英文 ✓。
+- **③ 图表统一规模标准**（设计回答）：depth/branches 是树形导图专有概念，
+  固定结构的思考图不适用；合理的对应物是**每张图元素上限**
+  （`chartMaxItems`，0=按类型默认）——作用于各类型主集合（流程步骤/树分支/
+  时间线事件/气泡…，`capSlotsItems` 截断且不低于校验最小值，venn 嵌套
+  集合同限），prompt 节点预算同步；单发/Agent/全景三条生成路径全接。
+- **测试**：21 文件 162 全绿（新增 cap×5、chartTypeName、面板语言切换）。
+- **踩坑**：i18n 资源插入含 `&` 的文本必须用 perl/Node 脚本,不能用 sed
+  （上轮已修一处,本轮全部改走 Node 脚本）。
+
+## 本轮新功能：文档转导图 + 导图总结与优化建议（路线图两项）
+
+- **文档转导图**：来源新增「文档文件」（.md/.txt/.docx/.pdf），零依赖提取
+  （`agent/doc-extract.ts`：docx=zip 中央目录+DecompressionStream 解 document.xml;
+  pdf=逐流 FlateDecode（zlib 封装优先,裸流兜底）+ Tj/TJ 操作符拼文本,过薄
+  明确报错建议粘贴）。提取后与粘贴文本同管线（导图/思考图共用）。单测
+  手搓 zip/pdf fixtures 覆盖 stored/deflate/flate/坏文件/过薄 8 例。
+  已知限制:PDF 无 CMap 解码,复杂编码(部分中文 PDF)/扫描件提取不了,会明确
+  提示改用粘贴。
+- **总结与优化建议**：AI 菜单新增「总结与优化建议…」（`ui/summarize.ts` +
+  `agent/summarize.ts`）：对最近一次生成结果(面板上下文,导图序列化缩进文本/
+  图表槽位 JSON)单发评审,三段输出(总结/要点/优化建议)以 assistant 卡片入
+  Agent 面板,只读不改画布。
+- **踩坑记录**：i18n 批量插入用 sed 时替换文本含 `&` 被展开成匹配行,污染了
+  en 资源的 aiSummarize 行——perl 修复;资源文件今后改动用 perl/编辑器,别用
+  sed。PDF FlateDecode 是 zlib 封装(RFC 1950)不是裸 deflate,'deflate' 先试。
+- **E2E**：mock 服务器新增 summarize 阶段;浏览器注入 DataTransfer 文件走通
+  文件来源全管线(根节点取文件名);总结 action 面板三段卡片 ✓。20 文件 155 全绿。
+
+## 本轮修复：Agent 面板跟随暗色主题 + i18n 补漏 + 路线图盘点
+
+- **暗色主题**（用户要求）：agent-panel 全部颜色收敛为调色板
+  （`panelPalette(dark)`，暗色对齐 drawio 画布 #2A2A2E/工具区 #202124/描边
+  #3C4043）；主题判定 `isDarkTheme` 按新版 drawio 的 `Editor.darkMode` 布尔
+  优先，旧版 `Editor.currentTheme==='dark'` 与 `ui.theme` 兜底；监听
+  `darkModeChanged` + `currentThemeChanged`，切换时按事件历史重渲染卡片
+  （新增 history 缓存,不丢会话）。
+- **顺手修复**：面板初始 display:flex 导致菜单「Agent panel」首次点击反而
+  隐藏——改为初始隐藏。
+- **英文版检查结论**：Agent 面板 i18n 覆盖完整（en/zh 双补丁 + EN_STRINGS
+  兜底,英文 UI 实测全英文）；修补 3 处硬编码中文错误文案
+  （agent-chart 未提交槽位/槽位校验失败/内容过少 + tools 抓取过薄详情，
+  新增 4 个键入 patches 与已生成 dia*.txt）；keys.ts 两条 fetch 提示同步。
+  已知遗留:charts/validate 的槽位校验错误文案仍为中文（影响面=提交失败
+  提示），需要时再统一。
+- **README 路线图盘点**：对话式侧边栏、零配置链接抓取、流程图分支连线标
+  [x]；新增「导图总结与优化建议」待办；文档转导图/XMind 导入/macOS+Linux
+  打包仍 [ ]。
+- **测试**：happy-dom 主题用例×3（调色板完备/判定优先级/事件重渲染不丢
+  历史）；19 文件 147 全绿；真实浏览器 ?ui=dark 实测面板配色逐值命中
+  暗色调色板、首次点击正常展开。
 
 - **问题**（用户反馈）：流程图"做的太烂、连线一点也不规范"；问图表有没有
   Agent 模式。测试链接 runoob ai-terminology。

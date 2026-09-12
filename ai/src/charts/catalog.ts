@@ -3,7 +3,11 @@
  * https://zhuanlan.zhihu.com/p/648532879):
  * 名称、定义、优点/适用场景,以及 AI 槽位协议(JSON schema 描述)。
  * 结构由槽位协议决定,几何布局由 charts/layout.ts 确定性完成。
+ * 注意:meta.name/definition/pros 是进 prompt 的中文常量;UI 展示一律走
+ * chartTypeName/chartTypeDesc(i18n),不要在界面层直接读 meta 字段。
  */
+
+import { t } from '../i18n/keys';
 
 export type ChartTypeId =
   | 'circle'        // 圆圈图
@@ -145,4 +149,15 @@ export const CHART_TYPE_ORDER: ChartTypeId[] = [
   'bridge',
   'org',
 ];
+
+/** 图表类型的界面显示名(i18n;prompt 继续用 meta.name 中文常量) */
+export function chartTypeName(id: ChartTypeId): string {
+  return t(`aiChartName_${id}`, CHART_TYPES[id].name);
+}
+
+/** 图表类型的界面说明行(i18n;prompt 继续用 meta.definition/pros) */
+export function chartTypeDesc(id: ChartTypeId): string {
+  const m = CHART_TYPES[id];
+  return t(`aiChartDesc_${id}`, `${m.definition} ${m.pros}`);
+}
 

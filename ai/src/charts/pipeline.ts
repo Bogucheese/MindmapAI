@@ -8,11 +8,11 @@ import { distillNotes } from '../agent/pipeline';
 import { parseJsonLoose } from '../agent/pipeline';
 import type { AiProviderSettings } from '../settings/settings';
 import type { DistilledNote, SourceDoc } from '../agent/types';
-import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from './catalog';
+import { CHART_TYPES, CHART_TYPE_ORDER, chartTypeName, type ChartTypeId } from './catalog';
 import { CHART_SHAPES } from './shapes';
 import { layoutChart, type ChartElement, type ChartSlots, type ChartDirection } from './layout';
 import { layoutGallery } from './gallery';
-import { validateChartSlots, chartNodeEstimate } from './validate';
+import { validateChartSlots, chartNodeEstimate, capSlotsItems } from './validate';
 import { buildChartSystemPrompt, buildChartUserPrompt, buildShapeGalleryPrompt } from '../agent/skills';
 import type { AgentEmitter } from '../agent/events';
 import { t } from '../i18n/keys';
@@ -24,6 +24,8 @@ export interface ChartGenerationOptions {
   timeoutMs?: number;
   chat?: typeof chatWithJsonFallback;
   direction?: ChartDirection;
+  /** 用户规模上限(每张图主集合元素数,0 = 按类型默认) */
+  maxItems?: number;
   onProgress?: (stage: 'distill' | 'architect' | 'render', current?: number, total?: number) => void;
 }
 
@@ -45,7 +47,7 @@ export async function generateChart(
   }
   const result = await chartFromNotes(settings, apiKey, chartType, input.topic, notes.value, opts);
   if (result.ok && opts.onEvent != null) {
-    opts.onEvent({ type: 'done', summary: `${CHART_TYPES[chartType].name} · ${result.stats.nodes} ${t('aiAgentNodesWord', 'nodes')}` });
+    opts.onEvent({ type: 'done', summary: `${chartTypeName(chartType)} · ${result.stats.nodes} ${t('aiAgentNodesWord', 'nodes')}` });
   }
   return result;
 }
@@ -89,17 +91,18 @@ async function chartFromNotes(
     { role: 'system', content: buildChartSystemPrompt(CHART_TYPES[chartType]) },
     {
       role: 'user',
-      content: `${buildChartUserPrompt(topic, notes, CHART_TYPES[chartType])}\n\n节点数预算:大约 ${chartNodeBudget(chartType)} 个。`,
+      content: `${buildChartUserPrompt(topic, notes, CHART_TYPES[chartType])}\n\n节点数预算:大约 ${chartNodeBudget(chartType, opts.maxItems ?? 0)} 个。`,
     },
   ];
   const res = await chat(settings, apiKey, messages, { maxTokens: 2048, timeoutMs, temperature: 0.5 });
   if (!res.ok) {
     return { ok: false, kind: res.kind, status: res.status, detail: res.detail, raw: '' };
   }
-  const slots = parseJsonLoose(res.content) as ChartSlots | null;
-  if (slots == null || typeof slots !== 'object') {
+  const parsedSlots = parseJsonLoose(res.content) as ChartSlots | null;
+  if (parsedSlots == null || typeof parsedSlots !== 'object') {
     return { ok: false, kind: 'schema', detail: '图表回复无法解析为 JSON。', raw: res.content };
   }
+  const slots = capSlotsItems(chartType, parsedSlots, opts.maxItems ?? 0);
   const invalid = validateChartSlots(chartType, slots);
   if (invalid != null) {
     return { ok: false, kind: 'schema', detail: invalid, raw: res.content };
@@ -113,7 +116,7 @@ async function chartFromNotes(
   }
   const nodes = chartNodeEstimate(chartType, slots);
   if (opts.onEvent != null) {
-    opts.onEvent({ type: 'chart', name: CHART_TYPES[chartType].name, nodes });
+    opts.onEvent({ type: 'chart', name: chartTypeName(chartType), nodes });
   }
   return {
     ok: true,
@@ -124,7 +127,8 @@ async function chartFromNotes(
   };
 }
 
-function chartNodeBudget(type: ChartTypeId): number {
+function chartNodeBudget(type: ChartTypeId, maxItems = 0): number {
+  if (maxItems > 0) return maxItems;
   const budgets: Partial<Record<ChartTypeId, number>> = {
     circle: 12, bubble: 10, doubleBubble: 16, tree: 20, flow: 10,
     multiFlow: 12, brace: 10, venn: 14, fishbone: 20, timeline: 10, bridge: 8, org: 20,
@@ -171,7 +175,7 @@ export async function generateChartGallery(
     } else {
       failed.push({ type, detail: r.detail });
       console.warn('[MindmapAI] gallery chart failed:', type, r.detail);
-      opts.onEvent?.({ type: 'warn', text: `${CHART_TYPES[type].name}: ${r.detail}` });
+      opts.onEvent?.({ type: 'warn', text: `${chartTypeName(type)}: ${r.detail}` });
     }
   }
   if (charts.length === 0) {

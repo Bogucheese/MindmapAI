@@ -106,3 +106,57 @@ export function chartNodeEstimate(type: ChartTypeId, slots: ChartSlots): number 
     (spec.requiredArrays ?? []).reduce((sum, a) => sum + Math.min(strArr(slots[a.key]).length, a.max ?? 99), 0)
   );
 }
+
+/* ---------- 用户规模上限(每张图元素上限,0 = 不限制) ---------- */
+
+/** 各类型的"主集合"字段:上限作用于它们;嵌套/次级集合仍由布局层默认值收敛 */
+const PRIMARY_ARRAYS: Partial<Record<ChartTypeId, string[]>> = {
+  circle: ['outer'],
+  bubble: ['bubbles'],
+  doubleBubble: ['shared', 'leftOnly', 'rightOnly'],
+  tree: ['branches'],
+  flow: ['steps'],
+  multiFlow: ['causes', 'effects'],
+  brace: ['parts'],
+  venn: ['shared'],
+  fishbone: ['categories'],
+  timeline: ['events'],
+  bridge: ['pairs'],
+  org: ['branches'],
+};
+
+/** venn 的左右集合是嵌套结构(left/right.items),单独处理 */
+const NESTED_ITEM_PATHS: Partial<Record<ChartTypeId, string[][]>> = {
+  venn: [['left', 'items'], ['right', 'items']],
+};
+
+/**
+ * 按用户上限截断主集合(0 = 原样)。截断不低于该校验最小值,避免出现
+ * "截完验不过"的自相矛盾;嵌套集合按同上限处理。
+ */
+export function capSlotsItems(type: ChartTypeId, slots: ChartSlots, maxItems: number): ChartSlots {
+  if (maxItems <= 0) return slots;
+  const spec = SPECS[type];
+  const capFor = (key: string): number => {
+    const min = spec?.requiredArrays?.find((a) => a.key === key)?.min ?? 1;
+    return Math.max(min, maxItems);
+  };
+  const out: ChartSlots = { ...slots };
+  for (const key of PRIMARY_ARRAYS[type] ?? []) {
+    const arr = strArr(out[key]);
+    const cap = capFor(key);
+    if (arr.length > cap) out[key] = arr.slice(0, cap);
+  }
+  for (const path of NESTED_ITEM_PATHS[type] ?? []) {
+    const [parentKey, childKey] = path;
+    const parent = out[parentKey];
+    if (parent == null || typeof parent !== 'object') continue;
+    const items = (parent as Record<string, unknown>)[childKey];
+    if (!Array.isArray(items)) continue;
+    const cap = Math.max(1, maxItems);
+    if (items.length > cap) {
+      out[parentKey] = { ...(parent as Record<string, unknown>), [childKey]: items.slice(0, cap) };
+    }
+  }
+  return out;
+}

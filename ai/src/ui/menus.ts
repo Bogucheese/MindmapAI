@@ -28,6 +28,7 @@ export function registerMenus(ui: DrawioPluginApi): void {
   ui.menus.put(AI_MENU_KEY, new Menu(function (menu, parent) {
     ui.menus.addMenuItem(menu, 'aiGenerate', parent);
     ui.menus.addMenuItem(menu, 'aiAgentPanel', parent);
+    ui.menus.addMenuItem(menu, 'aiSummarize', parent);
     ui.menus.addMenuItem(menu, 'aiShapeGallery', parent);
     // 图表槽位记忆存在(本会话生成过图表)时提供「AI 修改当前图表」
     const chartMemory = readChartSlots(ui.editor.graph);
@@ -63,6 +64,7 @@ export function registerMenus(ui: DrawioPluginApi): void {
     const elt = ui.menubar.addMenu(t(AI_MENU_KEY, 'AI'), function (menu, parent) {
       ui.menus.addMenuItem(menu, 'aiGenerate', parent);
       ui.menus.addMenuItem(menu, 'aiAgentPanel', parent);
+      ui.menus.addMenuItem(menu, 'aiSummarize', parent);
       ui.menus.addMenuItem(menu, 'aiShapeGallery', parent);
       if (readChartSlots(ui.editor.graph) != null) {
         ui.menus.addMenuItem(menu, 'aiChartEdit', parent);

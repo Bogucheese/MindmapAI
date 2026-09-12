@@ -76,8 +76,8 @@ export interface GenerationPrefs {
   /** 图表方向(tree/org/flow 支持) */
   chartDirection: 'vertical' | 'horizontal';
   chartType: string;
-  /** 内容来源：仅主题（现状单发）| 粘贴文本 | 链接抓取 */
-  sourceMode: 'topic' | 'paste' | 'link';
+  /** 内容来源：仅主题（现状单发）| 粘贴文本 | 链接抓取 | 文档文件(md/docx/pdf) */
+  sourceMode: 'topic' | 'paste' | 'link' | 'file';
   /** 来源模式：AI 按要点推荐 depth/maxChildren/maxNodes（手动值兜底） */
   autoParams: boolean;
   /** Agent 模式：模型用工具自主装配(导图逐个放节点;思考图提交槽位,更慢,实验性) */
@@ -85,6 +85,8 @@ export interface GenerationPrefs {
   depth: number;
   maxChildren: number;
   maxNodes: number;
+  /** 思考图规模上限:主集合(步骤/分支/事件等)截断数,0 = 按类型默认 */
+  chartMaxItems: number;
   language: 'auto' | 'en' | 'zh';
   layout: 'radial' | 'tree' | 'tree-vertical';
   /** 画布比例:auto=现状;其余按目标宽高比微调布局间距 */
@@ -109,6 +111,7 @@ export const DEFAULT_GENERATION_PREFS: GenerationPrefs = {
   depth: 3,
   maxChildren: 5,
   maxNodes: 60,
+  chartMaxItems: 0,
   language: 'auto',
   layout: 'radial',
   aspect: '16:9',
@@ -145,7 +148,7 @@ export function loadGenerationPrefs(): GenerationPrefs {
     const clampInt = (v: unknown, min: number, max: number, d: number): number =>
       typeof v === 'number' && isFinite(v) && Number.isInteger(v) && v >= min && v <= max ? v : d;
     return {
-      sourceMode: p.sourceMode === 'paste' || p.sourceMode === 'link' ? p.sourceMode : 'topic',
+      sourceMode: p.sourceMode === 'paste' || p.sourceMode === 'link' || p.sourceMode === 'file' ? p.sourceMode : 'topic',
       chartType: typeof p.chartType === 'string' && p.chartType !== '' ? p.chartType : 'mindmap',
       chartDirection: p.chartDirection === 'horizontal' ? 'horizontal' : 'vertical',
       detailMode: typeof p.detailMode === 'boolean' ? p.detailMode : true,
@@ -154,6 +157,7 @@ export function loadGenerationPrefs(): GenerationPrefs {
       depth: clampInt(p.depth, 1, 6, DEFAULT_GENERATION_PREFS.depth),
       maxChildren: clampInt(p.maxChildren, 1, 10, DEFAULT_GENERATION_PREFS.maxChildren),
       maxNodes: clampInt(p.maxNodes, 5, 200, DEFAULT_GENERATION_PREFS.maxNodes),
+      chartMaxItems: clampInt(p.chartMaxItems, 0, 40, DEFAULT_GENERATION_PREFS.chartMaxItems),
       language: p.language === 'en' || p.language === 'zh' || p.language === 'auto' ? p.language : 'auto',
       layout: p.layout === 'tree' || p.layout === 'tree-vertical' ? p.layout : 'radial',
       aspect: p.aspect === '16:9' || p.aspect === '4:3' || p.aspect === '1:1' || p.aspect === 'auto' ? (p.aspect as CanvasAspect) : '16:9',

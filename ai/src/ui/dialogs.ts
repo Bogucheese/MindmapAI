@@ -18,10 +18,11 @@ import { revealCellsProgressively } from './reveal';
 
 
 import type { AgentEvent } from '../agent/events';
-import { CHART_TYPES, CHART_TYPE_ORDER, type ChartTypeId } from '../charts/catalog';
+import { CHART_TYPES, CHART_TYPE_ORDER, chartTypeDesc, chartTypeName, type ChartTypeId } from '../charts/catalog';
 import { buildChartElements, type BuildChartOptions } from '../charts/assemble';
 import { attachChartSlots } from '../mindmap/tree-model';
 import { buildSourceDocFromText, buildSourceDocFromUrl } from '../agent/tools';
+import { extractDocumentText } from '../agent/doc-extract';
 import type { SourceDoc } from '../agent/types';
 import { t } from '../i18n/keys';
 import {
@@ -330,7 +331,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   const chartSelect = makeSelect(
     [
       { value: 'mindmap', label: t('aiChartTypeMindmap', 'Mind map') },
-      ...CHART_TYPE_ORDER.map((id) => ({ value: id as string, label: CHART_TYPES[id].name })),
+      ...CHART_TYPE_ORDER.map((id) => ({ value: id as string, label: chartTypeName(id) })),
       { value: 'gallery', label: t('aiChartTypeGallery', 'All charts (panorama canvas)') },
     ],
     prefs.chartType
@@ -347,8 +348,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       return;
     }
     if (id !== 'mindmap' && CHART_TYPES[id as ChartTypeId] != null) {
-      const m = CHART_TYPES[id as ChartTypeId];
-      mxUtils.write(chartDescRow, `${m.definition} ${m.pros}`);
+      mxUtils.write(chartDescRow, chartTypeDesc(id as ChartTypeId));
     }
   };
   const updateChartVisibility = (): void => {
@@ -367,6 +367,8 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     const dirVisible = isChart && DIRECTION_TYPES.indexOf(chartSelect.value) >= 0;
     directionLabel.style.display = dirVisible ? '' : 'none';
     directionSelect.style.display = dirVisible ? '' : 'none';
+    capLabel.style.display = isChart ? '' : 'none';
+    capInput.style.display = isChart ? '' : 'none';
     // org 惯例横向:类型切换时重置默认方向
     if (isChart) {
       directionSelect.value = chartSelect.value === 'org' ? 'horizontal' : 'vertical';
@@ -382,6 +384,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       { value: 'topic', label: t('aiSourceTopic', 'Topic only') },
       { value: 'paste', label: t('aiSourcePaste', 'Pasted text') },
       { value: 'link', label: t('aiSourceLink', 'Link') },
+      { value: 'file', label: t('aiSourceFile', 'File (Markdown/Word/PDF)') },
     ],
     prefs.sourceMode
   );
@@ -416,6 +419,32 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   table.appendChild(linkLabel);
   table.appendChild(linkInput);
 
+  // 文档文件:隐藏 input[type=file] + 选择按钮 + 文件名回显
+  const fileLabel = makeLabelCell(t('aiSourceFileField', 'Document'));
+  const fileRow = document.createElement('div');
+  fileRow.style.display = 'flex';
+  fileRow.style.alignItems = 'center';
+  fileRow.style.gap = '8px';
+  let pickedFile: File | null = null;
+  const fileInput = document.createElement('input');
+  fileInput.setAttribute('type', 'file');
+  fileInput.setAttribute('accept', '.md,.markdown,.txt,.docx,.pdf');
+  fileInput.style.display = 'none';
+  const fileNameSpan = document.createElement('span');
+  fileNameSpan.style.fontSize = '9pt';
+  fileNameSpan.style.color = COLOR_NOTICE;
+  mxUtils.write(fileNameSpan, t('aiFileNone', '(no file chosen)'));
+  fileInput.addEventListener('change', () => {
+    pickedFile = fileInput.files != null && fileInput.files.length > 0 ? fileInput.files[0] : null;
+    fileNameSpan.textContent = pickedFile != null ? pickedFile.name : t('aiFileNone', '(no file chosen)');
+  });
+  const fileBtn = mxUtils.button(t('aiFileChoose', 'Choose file…'), () => fileInput.click());
+  fileRow.appendChild(fileBtn);
+  fileRow.appendChild(fileNameSpan);
+  table.appendChild(fileLabel);
+  table.appendChild(fileRow);
+  table.appendChild(fileInput);
+
   const fetchHintRow = makeFullRow('9pt');
   fetchHintRow.style.color = COLOR_NOTICE;
   mxUtils.write(
@@ -434,16 +463,20 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     const topicDisplay = mode === 'topic' ? '' : 'none';
     const pasteDisplay = mode === 'paste' ? '' : 'none';
     const linkDisplay = mode === 'link' ? '' : 'none';
+    const fileDisplay = mode === 'file' ? '' : 'none';
+    const titleDisplay = mode === 'paste' || mode === 'file' ? '' : 'none';
     topicLabel.style.display = topicDisplay;
     topicInput.style.display = topicDisplay;
-    titleLabel.style.display = pasteDisplay;
-    titleInput.style.display = pasteDisplay;
+    titleLabel.style.display = titleDisplay;
+    titleInput.style.display = titleDisplay;
     textLabel.style.display = pasteDisplay;
     sourceTextArea.style.display = pasteDisplay;
     tooltipHintRow.style.display = mode === 'topic' ? 'none' : '';
     linkLabel.style.display = linkDisplay;
     linkInput.style.display = linkDisplay;
     fetchHintRow.style.display = linkDisplay;
+    fileLabel.style.display = fileDisplay;
+    fileRow.style.display = mode === 'file' ? 'flex' : 'none';
     // 自动参数只对来源模式生效
     autoInput.disabled = mode === 'topic';
     autoRow.style.opacity = mode === 'topic' ? '0.5' : '';
@@ -499,7 +532,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   const langSelect = makeSelect(
     [
       { value: 'auto', label: t('aiLangAuto', 'Auto (follow topic)') },
-      { value: 'zh', label: '中文' },
+      { value: 'zh', label: t('aiLangZh', 'Chinese') },
       { value: 'en', label: 'English' },
     ],
     prefs.language
@@ -543,6 +576,15 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
   table.appendChild(directionLabel);
   table.appendChild(directionSelect);
   const DIRECTION_TYPES = ['tree', 'org', 'flow'];
+
+  // 思考图规模上限(0=按类型默认):作用于主集合(步骤/分支/事件等),prompt 预算同步
+  const capLabel = makeLabelCell(t('aiChartMaxItems', 'Max items per chart'));
+  const capInput = makeInput('number', String(prefs.chartMaxItems));
+  capInput.setAttribute('min', '0');
+  capInput.setAttribute('max', '40');
+  capInput.setAttribute('placeholder', t('aiChartMaxItemsHint', '0 = auto'));
+  table.appendChild(capLabel);
+  table.appendChild(capInput);
   // 全部行就绪后再做初始可见性(各 update 函数互相引用后面定义的行,避免 TDZ)
   updateSourceMode();
 
@@ -660,16 +702,18 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
     const depth = Number(depthInput.value);
     const maxChildren = Number(childrenInput.value);
     const maxNodes = Number(nodesInput.value);
+    const capNum = Number(capInput.value);
     const rangeOk =
       Number.isInteger(depth) && depth >= 1 && depth <= 6 &&
       Number.isInteger(maxChildren) && maxChildren >= 1 && maxChildren <= 10 &&
-      Number.isInteger(maxNodes) && maxNodes >= 5 && maxNodes <= 200;
+      Number.isInteger(maxNodes) && maxNodes >= 5 && maxNodes <= 200 &&
+      Number.isInteger(capNum) && capNum >= 0 && capNum <= 40;
     if (!rangeOk) {
       setStatus(t('aiGenInvalidRange', 'Please check the numeric ranges (depth 1-6, branches 1-10, nodes 5-200).'), COLOR_ERROR);
       return null;
     }
     return {
-      sourceMode: sourceSelect.value === 'paste' || sourceSelect.value === 'link' ? sourceSelect.value : 'topic',
+      sourceMode: sourceSelect.value === 'paste' || sourceSelect.value === 'link' || sourceSelect.value === 'file' ? sourceSelect.value : 'topic',
       chartType: chartSelect.value,
       chartDirection: directionSelect.value === 'horizontal' ? 'horizontal' : 'vertical',
       detailMode: detailInput.checked,
@@ -678,6 +722,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
       depth,
       maxChildren,
       maxNodes,
+      chartMaxItems: capNum,
       language: langSelect.value === 'zh' || langSelect.value === 'en' ? langSelect.value : 'auto',
       layout: layoutSelect.value === 'tree' || layoutSelect.value === 'tree-vertical' ? layoutSelect.value : 'radial',
       aspect: aspectSelect.value === '16:9' || aspectSelect.value === '4:3' || aspectSelect.value === '1:1' || aspectSelect.value === 'auto'
@@ -894,6 +939,7 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
             ? generateChartGallery(settings, apiKey, { topic, doc }, {
                 isCancelled: () => cancelled,
                 onEvent: onAgentEvent,
+                maxItems: genPrefs.chartMaxItems,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
                     const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;
@@ -914,11 +960,13 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
               ? runAgentChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
                   isCancelled: () => cancelled,
                   onEvent: onAgentEvent,
+                  maxItems: genPrefs.chartMaxItems,
                 })
               : generateChart(settings, apiKey, genPrefs.chartType as ChartTypeId, { topic, doc }, {
                 direction: chartDirection,
                 isCancelled: () => cancelled,
                 onEvent: onAgentEvent,
+                maxItems: genPrefs.chartMaxItems,
                 onProgress: (stage, current, total) => {
                   if (stage === 'distill' && total != null && total > 1) {
                     const label = `${t('aiStageDistill', 'Distilling knowledge points')} (${current ?? 0}/${total})`;
@@ -1004,6 +1052,32 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
         }
         const doc = buildSourceDocFromText(sourceTitle, sourceText);
         runChart(sourceTitle !== '' ? sourceTitle : doc.title, doc);
+      } else if (genPrefs.sourceMode === 'file') {
+        if (pickedFile == null) {
+          setStatus(t('aiFileRequired', 'Please choose a document file.'), COLOR_ERROR);
+          return;
+        }
+        const file = pickedFile;
+        cancelled = false;
+        generateBtn.setAttribute('disabled', 'disabled');
+        setStatus(t('aiFileReading', 'Reading document...'));
+        rawRow.style.display = 'none';
+        saveGenerationPrefs(genPrefs);
+        const fileTitle = titleInput.value.trim() !== '' ? titleInput.value.trim() : file.name.replace(/\.[^.]+$/, '');
+        void file.arrayBuffer()
+          .then((buf) => extractDocumentText(file.name, new Uint8Array(buf)))
+          .then((ex) => {
+            generateBtn.removeAttribute('disabled');
+            if (!ex.ok) {
+              setStatus(`${t('aiFileReadFail', 'Failed to read the document')}: ${ex.detail}`, COLOR_ERROR);
+              return;
+            }
+            runChart(fileTitle, buildSourceDocFromText(fileTitle, ex.text));
+          })
+          .catch((err: unknown) => {
+            generateBtn.removeAttribute('disabled');
+            setStatus(String(err), COLOR_ERROR);
+          });
       } else if (genPrefs.sourceMode === 'link') {
         const linkUrl = linkInput.value.trim();
         if (!/^https?:\/\/\S+/i.test(linkUrl)) {
@@ -1082,6 +1156,52 @@ export function showGenerateDialog(ui: DrawioPluginApi): void {
           );
         }
         runSourcePipeline(genPrefs, settings, apiKey, sourceTitle !== '' ? sourceTitle : doc.title, doc);
+      });
+      return;
+    }
+
+    if (genPrefs.sourceMode === 'file') {
+      // 来源模式：文档文件(md/docx/pdf) → 提取纯文本 → 与粘贴同管线
+      if (pickedFile == null) {
+        setStatus(t('aiFileRequired', 'Please choose a document file.'), COLOR_ERROR);
+        return;
+      }
+      const file = pickedFile;
+      cancelled = false;
+      generateBtn.setAttribute('disabled', 'disabled');
+      getApiKey().then((apiKey) => {
+        if (apiKey == null) {
+          generateBtn.removeAttribute('disabled');
+          hideProgress();
+          setStatus(t('aiNoKey', 'No API key configured.'), COLOR_ERROR);
+          return;
+        }
+        setStatus(t('aiFileReading', 'Reading document...'));
+        rawRow.style.display = 'none';
+        saveGenerationPrefs(genPrefs);
+        const fileTitle = titleInput.value.trim() !== '' ? titleInput.value.trim() : file.name.replace(/\.[^.]+$/, '');
+        void file.arrayBuffer()
+          .then((buf) => extractDocumentText(file.name, new Uint8Array(buf)))
+          .then((ex) => {
+            if (!ex.ok) {
+              generateBtn.removeAttribute('disabled');
+              setStatus(`${t('aiFileReadFail', 'Failed to read the document')}: ${ex.detail}`, COLOR_ERROR);
+              return;
+            }
+            const settings: AiProviderSettings = loadSettings();
+            const doc = buildSourceDocFromText(fileTitle, ex.text);
+            if (doc.truncated) {
+              setStatus(
+                `${t('aiStageIngest', 'Preparing source...')} — ${t('aiSourceTruncated', 'long source truncated, quality may be affected')}`,
+                COLOR_NOTICE
+              );
+            }
+            runSourcePipeline(genPrefs, settings, apiKey, fileTitle, doc);
+          })
+          .catch((err: unknown) => {
+            generateBtn.removeAttribute('disabled');
+            setStatus(String(err), COLOR_ERROR);
+          });
       });
       return;
     }

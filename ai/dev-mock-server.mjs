@@ -130,6 +130,19 @@ const FLOW_SLOTS = {
   ],
 };
 
+// 总结与优化建议阶段:固定三段评审文本
+const SUMMARIZE_TEXT = [
+  '总结: 该导图围绕 AI Agent 展开,覆盖定义、类型、适用场景与方案要素,结构完整。',
+  '要点:',
+  '- AI Agent 是让 LLM 在环境中行动的系统(环境/传感器/执行器)',
+  '- 类型谱系从简单反射到多智能体系统(MAS)',
+  '- 适合开放性、多步工具调用、需持续改进的场景',
+  '优化建议:',
+  '- 「定义与类型」层级粒度过粗,建议把 MAS 拆为协作/竞争两子支',
+  '- 统一术语:图中同时出现「Agent」与「智能体」,建议固定为「Agent」',
+  '- 缺少「评估指标」分支,建议补充成功率/成本/时延维度',
+].join('\n');
+
 function stageOf(body) {
   const sys = (body.messages || []).find((m) => m.role === 'system');
   const m = typeof sys?.content === 'string' ? sys.content.match(/\[MM-STAGE:([\w-]+)\]/) : null;
@@ -179,6 +192,8 @@ const server = createServer((req, res) => {
       content = typeof sys?.content === 'string' && sys.content.includes('流程图')
         ? JSON.stringify(FLOW_SLOTS)
         : JSON.stringify(TREE);
+    } else if (stage === 'summarize') {
+      content = SUMMARIZE_TEXT;
     } else if (stage === 'agent-chart') {
       // Agent 模式(思考图):直接以 tool_calls 提交槽位,一次成环
       content = '';

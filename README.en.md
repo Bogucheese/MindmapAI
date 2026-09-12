@@ -35,11 +35,12 @@ MindmapAI injects AI generation capabilities into drawio as a plugin, and ships 
 
 ### AI mind map generation
 
-- **Three content sources**: topic only / pasted text / web link. Link mode auto-converts GitHub pages to raw URLs, parses Bilibili video metadata, and falls back gracefully (direct → built-in local relay → custom/public fetch proxies). The relay works out of the box when launched via `start.sh`/`start.cmd`; for other hosting setups a zero-dependency [local fetch proxy](ai/tools/local-fetch-proxy.mjs) is available.
+- **Four content sources**: topic only / pasted text / web link / document file (.md/.txt/.docx/.pdf, extracted locally, zero-dependency). Link mode auto-converts GitHub pages to raw URLs, parses Bilibili video metadata, and falls back gracefully (direct → built-in local relay → custom/public fetch proxies). The relay works out of the box when launched via `start.sh`/`start.cmd`; for other hosting setups a zero-dependency [local fetch proxy](ai/tools/local-fetch-proxy.mjs) is available.
 - **Review pipeline**: distill → architect → auto-review; when any of the four quality dimensions scores too low, the map is automatically rebuilt once. Generation can be cancelled at any time.
-- **Agent side panel**: watch the agent work in real time — every distilled note with its verbatim quote, the section skeleton, four-dimension review scores with feedback, rebuild reasons, and per-chart progress (AI → Agent panel).
+- **Agent side panel**: watch the agent work in real time — every distilled note with its verbatim quote, the section skeleton, four-dimension review scores with feedback, rebuild reasons, and per-chart progress (AI → Agent panel). The panel follows the editor's light/dark theme and UI language, switching live.
 - **Agent mode (experimental)**: hand the control flow to the model — it assembles the whole map or any thinking chart itself with real tools (read notes / fetch pages / place nodes one by one / self-check fixes) until it declares the result done (hard tool-call and node caps as a safety net).
 - **Conversational edits**: type an instruction in the Agent panel ("unify the term to AI Agent", "add a contrast branch to the root") and the agent applies it with tools, then re-lays the canvas automatically.
+- **Summarize & suggestions**: one click in the AI menu reviews the current map/chart — summary, key points, and actionable optimization suggestions referencing real node labels, streamed into the panel (read-only).
 - **Deterministic quality checks**: duplicate concepts under the same parent are auto-merged; cross-branch duplicates and over-long flat lists are reported to the reviewer; prompts enforce terminology consistency, single-dimension siblings, and grouped hierarchies.
 - **AI auto-tuning**: depth, branching factor, and node budget are chosen by AI based on content density — or set them manually (depth 1-6 / children 1-10 / max nodes 5-200).
 - **Detail mode**: every point becomes a leaf, with verbatim quotes placed on the canvas as citation nodes; large sources additionally get satellite mini-maps, a summary table, and a relation chart (composite canvas).
@@ -51,7 +52,9 @@ MindmapAI injects AI generation capabilities into drawio as a plugin, and ships 
 Circle map / bubble map / double bubble map / tree map / flow map / multi-flow map / brace map / Venn diagram / fishbone diagram / timeline / bridge map / org chart — switch with one click in the generation dialog; every type ships with a definition and usage guidance.
 
 - AI picks from 20+ drawio shape parts (capsule, diamond, cylinder, swimlane, person, note, plus 8 inline-SVG semantic icons: AI / tool / target / knowledge / group…) by semantics instead of only using rectangles.
-- All charts use **deterministic geometric layouts**; layout functions are unit-tested for zero overlap.
+- All charts use **deterministic geometric layouts**; layout functions are unit-tested for zero overlap. Edges are always orthogonal; flowcharts support decision branches and loops via an explicit edges protocol.
+- **Uniform size cap**: a per-chart max-items control (0 = type default) applies to primary collections (steps / branches / events…), with the AI budget kept in sync.
+- Chart type names and descriptions follow the UI language (Chinese/English).
 - **"AI-edit this chart"**: append natural-language revision instructions to an existing chart; changes are validated and redrawn incrementally.
 - **Panorama canvas**: pick "All charts (panorama canvas)" in the generation dialog to generate all 12 thinking charts from the same source onto ONE canvas (one AI call per chart; failed charts are skipped).
 
@@ -173,8 +176,12 @@ cd ai && npm run typecheck && npm test && npm run build
 
 - [x] MVP: topic/text/link generation, review pipeline, 12 thinking charts, desktop packaging
 - [x] Original app icon & PWA branding (replacing upstream brand assets, see `patches/assets/mindmapai-icon.svg`)
-- [ ] Conversational sidebar, map optimization & summarization
-- [ ] Document-to-map (Markdown / Word / PDF), bidirectional Markdown editing
+- [x] Conversational sidebar (Agent panel + command edits; agent mode for maps and charts)
+- [x] Zero-config web link fetching (built-in local relay; custom/public proxy fallback)
+- [x] Flowchart branching edges (explicit decision branches/loops + all-orthogonal routing)
+- [x] Map summary & optimization suggestions (AI → Summarize & suggestions)
+- [x] Document-to-map (Markdown / Word / PDF files, extracted locally into the source pipeline)
+- [ ] Bidirectional Markdown editing
 - [ ] XMind / Freeplane / OPML import
 - [ ] macOS / Linux packaging, installer code signing
 

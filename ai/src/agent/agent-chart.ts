@@ -10,9 +10,9 @@
 import { chatWithJsonFallback, chatWithTools, type ToolLoopMessage, type ToolSpec } from '../ai/client';
 import { fetchWithRelay } from './tools';
 import type { ChartTypeId } from '../charts/catalog';
-import { CHART_TYPES } from '../charts/catalog';
+import { CHART_TYPES, chartTypeName } from '../charts/catalog';
 import { layoutChart, type ChartElement, type ChartSlots, type ChartDirection } from '../charts/layout';
-import { chartNodeEstimate, validateChartSlots } from '../charts/validate';
+import { chartNodeEstimate, validateChartSlots, capSlotsItems } from '../charts/validate';
 import type { AgentEmitter } from './events';
 import { distillNotes } from './pipeline';
 import { parseJsonLoose } from './pipeline';
@@ -24,6 +24,8 @@ export interface AgentChartOptions {
   isCancelled?: () => boolean;
   timeoutMs?: number;
   maxToolCalls?: number;
+  /** 用户规模上限(每张图主集合元素数,0 = 按类型默认) */
+  maxItems?: number;
   onEvent?: AgentEmitter;
   chat?: typeof chatWithTools;
   distillChat?: typeof chatWithJsonFallback;
@@ -114,7 +116,7 @@ export async function runAgentChart(
         const invalid = validateChartSlots(chartType, parsed);
         if (invalid != null) return JSON.stringify({ error: `slots invalid: ${invalid}` });
         submits += 1;
-        accepted = parsed;
+        accepted = capSlotsItems(chartType, parsed, opts.maxItems ?? 0);
         return JSON.stringify({ accepted: true, nodes: chartNodeEstimate(chartType, parsed) });
       }
       default:
@@ -174,7 +176,7 @@ export async function runAgentChart(
     },
     {
       role: 'user',
-      content: `Topic: ${input.topic}\nKnowledge points available: ${notes.length}. Start now.`,
+      content: `Topic: ${input.topic}\nKnowledge points available: ${notes.length}.${(opts.maxItems ?? 0) > 0 ? `\nItem cap per chart: about ${opts.maxItems}.` : ''} Start now.`,
     },
   ];
 
@@ -227,15 +229,15 @@ export async function runAgentChart(
   }
 
   if (accepted == null) {
-    return { ok: false, kind: 'schema', detail: submits > 0 ? '槽位未能通过校验。' : 'Agent 未提交图表槽位。' };
+    return { ok: false, kind: 'schema', detail: submits > 0 ? t('aiAgentSlotsInvalid', 'Submitted slots failed validation.') : t('aiAgentNoSubmit', 'The agent did not submit chart slots.') };
   }
 
   const elements = layoutChart(chartType, accepted, opts.direction ?? 'vertical');
   if (elements.filter((e) => e.kind === 'vertex').length < 3) {
-    return { ok: false, kind: 'schema', detail: '图表内容过少。' };
+    return { ok: false, kind: 'schema', detail: t('aiChartTooSmall', 'Chart content is too thin.') };
   }
   const nodes = chartNodeEstimate(chartType, accepted);
-  onEvent?.({ type: 'done', summary: `${meta.name} · ${nodes} ${t('aiAgentNodesWord', 'nodes')}` });
+  onEvent?.({ type: 'done', summary: `${chartTypeName(chartType)} · ${nodes} ${t('aiAgentNodesWord', 'nodes')}` });
   return {
     ok: true,
     type: chartType,

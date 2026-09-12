@@ -6,6 +6,7 @@
 import { showGenerateDialog, showSettingsDialog, showShapeGalleryDialog } from './dialogs';
 import { showChartEditDialog } from './chart-edit';
 import { ensureAgentPanel } from './agent-panel';
+import { summarizeCurrentMap } from './summarize';
 import { bindAgentCommands } from './agent-commands';
 import { revealCellsProgressively } from './reveal';
 import { buildMindmapFromTree } from '../mindmap/tree-model';
@@ -23,6 +24,11 @@ export function registerActions(ui: DrawioPluginApi): void {
   // AI → Agent 面板：实时展示生成过程(要点原文/评审意见/图表进度)
   ui.actions.addAction('aiAgentPanel', function () {
     ensureAgentPanel(ui).toggle();
+  });
+
+  // AI → 总结与优化建议：对最近一次生成结果做单发评审(面板展示,只读)
+  ui.actions.addAction('aiSummarize', function () {
+    void summarizeCurrentMap(ui);
   });
 
   // AI → 设置：供应商配置 + 测试连接（M3）
